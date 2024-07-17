@@ -21,19 +21,19 @@ const userSchema = new Schema(
         },
         firstName: {
             type: String,
-            required: true,
+            required: false,
             trim: true,
             index: true
         },
         lastName: {
             type: String,
-            required: true,
+            required: false,
             trim: true,
             index: true
         },
         avatar: {
             type: String, // Cloudinary URL
-            required: true
+            required: false
         },
         password: {
             type: String,
