@@ -74,6 +74,7 @@ const loginUser = asyncHandler( async(req, res) => {
         $or: [{ username }, { email }]
     })
 
+    
     if(!user) {
         throw new apiError(404, "User does not exists")
     }
@@ -99,7 +100,58 @@ const loginUser = asyncHandler( async(req, res) => {
     .json(new apiResponse(200, {accessToken, refreshToken}, "User logged in successfully"))
 })
 
+
+const logoutUser = asyncHandler(async(req, res) => {
+
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $unset: { refreshToken: 1 } //this removes the field form document
+        }, 
+        {
+            new: true
+        }
+    )
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res.status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new apiResponse(200, {}, "User logged out"))
+})
+
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+    
+    const { oldPassword, newPassword } = req.body
+    
+    const user = await User.findById(req.user?._id)
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+
+    if(!isPasswordCorrect) {
+        throw new apiError(400, "Incorrect old password")
+    }
+
+    user.password = newPassword
+    await user.save({validateBeforeSave: false})
+    
+    return res.status(200).json(new apiResponse(200, {}, "Password changed successfully"))
+})
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+
+   return res.status(200).json(new apiResponse(200, req.user, "Current user fetched successfully"))
+
+})
+
+
 export { 
     registerUser,
-    loginUser 
+    loginUser,
+    logoutUser,
+    changeCurrentPassword,
+    getCurrentUser 
 }

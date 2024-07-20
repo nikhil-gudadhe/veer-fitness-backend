@@ -41,8 +41,9 @@ const userSchema = new Schema(
             trim: true
         },
         role: {
-            type: Schema.Types.ObjectId,
-            ref: "Role"
+            type: String,
+            enum: ["admin", "trainer"],
+            default: "trainer",
         },
         refreshToken: {
             type: String
