@@ -33,7 +33,7 @@ const membershipSchema = new Schema(
   {
     type: {
       type: String,
-      enum: ["Platinum", "Gold", "Silver"],
+      enum: ["Silver", "Gold", "Platinum"],
       required: true,
     },
     startDate: {

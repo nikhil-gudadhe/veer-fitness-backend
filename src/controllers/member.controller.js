@@ -16,22 +16,30 @@ const calculateEndDate = (startDate, duration) => {
 
 // Register new member
 export const registerMember = asyncHandler(async (req, res) => {
-  const { firstName, lastName, gender, age, address, phone, email, duration, membershipType } = req.body;
+  const { firstName, lastName, gender, age, address, mobile, email, duration, membershipType } = req.body;
 
-  const existingMember = await Member.findOne({ email });
+  if ([firstName, lastName, gender, age, mobile, email].some((field) => field?.trim() === "")) {
+    throw new apiError(400, "All fields are required")
+  }
+
+  const existingMember = await Member.findOne({
+    $or: [{ mobile }, { email }]
+  });
 
   if (existingMember) {
     throw new apiError(409, "Member with this email already exists");
   }
 
   const newMember = new Member({
-    firstName,
-    lastName,
-    gender,
-    age,
-    address,
-    phone,
+    firstName, 
+    lastName, 
+    gender, 
+    age, 
+    address, 
+    mobile, 
     email,
+    duration, 
+    membershipType,
     joiningDate: new Date(),
   });
 
@@ -56,6 +64,20 @@ export const registerMember = asyncHandler(async (req, res) => {
 
   res.status(201).json(new apiResponse(201, newMember, "Member registered successfully"));
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Get all members
 export const getAllMembers = asyncHandler(async (req, res) => {
