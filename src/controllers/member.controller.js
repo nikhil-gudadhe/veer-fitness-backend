@@ -2,7 +2,9 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiResponse } from "../utils/apiResponse.js";
 import { Member } from "../models/member.model.js";
 import { Membership } from "../models/membership.model.js";
+import { Plan } from "../models/plan.model.js";
 import { apiError } from "../utils/apiError.js";
+//import twilio from 'twilio';
 
 // Function to calculate end date based on duration
 const calculateEndDate = (startDate, duration) => {
@@ -10,16 +12,20 @@ const calculateEndDate = (startDate, duration) => {
     throw new Error("Invalid duration. Must be a number between 1 and 12 representing months.");
   }
   const endDate = new Date(startDate);
+  if (isNaN(endDate.getTime())) {
+    throw new Error("Invalid start date.");
+  }
   endDate.setMonth(endDate.getMonth() + duration);
   return endDate;
 };
 
 // Register new member
 export const registerMember = asyncHandler(async (req, res) => {
-  const { firstName, lastName, gender, age, address, mobile, email, duration, membershipType } = req.body;
+  const { firstName, lastName, gender, age, address, mobile, email, planId } = req.body;
 
-  if ([firstName, lastName, gender, age, mobile, email].some((field) => field?.trim() === "")) {
-    throw new apiError(400, "All fields are required")
+  // Validate required fields
+  if ([firstName, lastName, gender, age, mobile, email, planId].some(field => field === undefined || field === null || field === '')) {
+    throw new apiError(400, "All fields are required");
   }
 
   const existingMember = await Member.findOne({
@@ -27,7 +33,12 @@ export const registerMember = asyncHandler(async (req, res) => {
   });
 
   if (existingMember) {
-    throw new apiError(409, "Member with this email already exists");
+    throw new apiError(409, "Member with this email or mobile already exists");
+  }
+
+  const plan = await Plan.findById(planId);
+  if (!plan) {
+    throw new apiError(404, "Plan not found");
   }
 
   const newMember = new Member({
@@ -38,21 +49,18 @@ export const registerMember = asyncHandler(async (req, res) => {
     address, 
     mobile, 
     email,
-    duration, 
-    membershipType,
     joiningDate: new Date(),
   });
 
   await newMember.save();
 
   const startDate = new Date();
-  const endDate = calculateEndDate(startDate, duration);
+  const endDate = calculateEndDate(startDate, plan.duration);
 
   const newMembership = new Membership({
-    type: membershipType,
+    plan: plan._id,
     startDate,
     endDate,
-    duration,
     status: "active",
     member: newMember._id,
   });
@@ -65,20 +73,6 @@ export const registerMember = asyncHandler(async (req, res) => {
   res.status(201).json(new apiResponse(201, newMember, "Member registered successfully"));
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Get all members
 export const getAllMembers = asyncHandler(async (req, res) => {
   const members = await Member.find().populate('membership');
@@ -87,7 +81,7 @@ export const getAllMembers = asyncHandler(async (req, res) => {
 
 // Get a single member
 export const getMemberById = asyncHandler(async (req, res) => {
-  const member = await Member.findById(req.params.id).populate('membership');
+  const member = await Member.findById(req.params.memberId).populate('membership');
 
   if (!member) {
     throw new apiError(404, "Member not found");
@@ -96,20 +90,33 @@ export const getMemberById = asyncHandler(async (req, res) => {
   res.status(200).json(new apiResponse(200, member, "Member fetched successfully"));
 });
 
-// Update a member
+// Update a member using PATCH
 export const updateMember = asyncHandler(async (req, res) => {
-  const member = await Member.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('membership');
+  const { memberId } = req.params;
+  const updateFields = req.body;
+
+  const member = await Member.findById(memberId);
 
   if (!member) {
     throw new apiError(404, "Member not found");
   }
 
-  res.status(200).json(new apiResponse(200, member, "Member updated successfully"));
+  // Apply updates only to the provided fields
+  Object.keys(updateFields).forEach(field => {
+    if (updateFields[field] !== undefined && updateFields[field] !== null) {
+      member[field] = updateFields[field];
+    }
+  });
+
+  await member.save();
+  const updatedMember = await Member.findById(memberId).populate('membership');
+
+  res.status(200).json(new apiResponse(200, updatedMember, "Member updated successfully"));
 });
 
 // Delete a member
 export const deleteMember = asyncHandler(async (req, res) => {
-  const member = await Member.findByIdAndDelete(req.params.id);
+  const member = await Member.findByIdAndDelete(req.params.memberId);
 
   if (!member) {
     throw new apiError(404, "Member not found");
@@ -120,9 +127,9 @@ export const deleteMember = asyncHandler(async (req, res) => {
   res.status(200).json(new apiResponse(200, {}, "Member deleted successfully"));
 });
 
-// Extend a membership
+// Extend a membership or opt for a different plan
 export const extendMembership = asyncHandler(async (req, res) => {
-  const { memberId, duration } = req.body;
+  const { memberId, duration, newPlanId } = req.body;
   const adminId = req.user._id;
 
   const member = await Member.findById(memberId).populate('membership');
@@ -131,25 +138,123 @@ export const extendMembership = asyncHandler(async (req, res) => {
     throw new apiError(404, "Member not found");
   }
 
-  const membership = await Membership.findById(member.membership._id);
+  const currentMembership = await Membership.findById(member.membership._id);
 
-  if (!membership) {
+  if (!currentMembership) {
     throw new apiError(404, "Membership not found");
   }
 
-  const previousEndDate = membership.endDate;
-  const newEndDate = calculateEndDate(previousEndDate, duration);
+  if (newPlanId) {
+    // Opt for a different plan
+    const newPlan = await Plan.findById(newPlanId);
+    if (!newPlan) {
+      throw new apiError(404, "New plan not found");
+    }
 
-  membership.endDate = newEndDate;
-  membership.status = "active";
-  membership.extensions.push({
-    previousEndDate,
-    newEndDate,
-    extendedBy: adminId,
-    duration,
-  });
+    // Deactivate current membership
+    currentMembership.status = "inactive";
+    await currentMembership.save();
 
-  await membership.save();
+    const startDate = new Date();
+    const endDate = calculateEndDate(startDate, newPlan.duration);
 
-  res.status(200).json(new apiResponse(200, membership, "Membership extended successfully"));
+    const newMembership = new Membership({
+      plan: newPlan._id,
+      startDate,
+      endDate,
+      status: "active",
+      member: member._id,
+    });
+
+    await newMembership.save();
+
+    member.membership = newMembership._id;
+    await member.save();
+
+    res.status(200).json(new apiResponse(200, newMembership, "Membership updated to a new plan successfully"));
+  } else {
+    // Extend the current membership
+    const previousEndDate = currentMembership.endDate;
+    const newEndDate = calculateEndDate(previousEndDate, duration);
+
+    currentMembership.endDate = newEndDate;
+    currentMembership.status = "active";
+    currentMembership.extensions.push({
+      previousEndDate,
+      newEndDate,
+      extendedBy: adminId,
+      duration,
+    });
+
+    await currentMembership.save();
+
+    res.status(200).json(new apiResponse(200, currentMembership, "Membership extended successfully"));
+  }
 });
+
+// Find all members with active memberships
+export const getActiveMembers = asyncHandler(async (req, res) => {
+  const activeMemberships = await Membership.find({ status: "active" }).populate('member');
+
+  const activeMembers = activeMemberships.map(membership => membership.member);
+
+  res.status(200).json(new apiResponse(200, activeMembers, "All active members fetched successfully"));
+});
+
+// Find all members with inactive memberships
+export const getInactiveMembers = asyncHandler(async (req, res) => {
+  const inactiveMemberships = await Membership.find({ status: "inactive" }).populate('member');
+
+  const inactiveMembers = inactiveMemberships.map(membership => membership.member);
+
+  res.status(200).json(new apiResponse(200, inactiveMembers, "All inactive members fetched successfully"));
+});
+
+// Twilio configuration
+const accountSid = 'your_twilio_account_sid';
+const authToken = 'your_twilio_auth_token';
+//const client = twilio(accountSid, authToken);
+
+// Function to calculate memberships expiring in exactly 5 days
+const calculateExpiringMemberships = async () => {
+  const today = new Date();
+  const expiryDate = new Date();
+  expiryDate.setDate(today.getDate() + 5); // Check for memberships expiring in exactly 5 days
+
+  const expiringMemberships = await Membership.find({
+    endDate: { $eq: expiryDate },
+    status: "active"
+  }).populate('member');
+
+  return expiringMemberships;
+};
+
+// Method to check expiring memberships and send notifications
+export const checkExpiringMemberships = async () => {
+  try {
+    const expiringMemberships = await calculateExpiringMemberships();
+
+    // Implement your notification logic here, e.g., send WhatsApp messages
+    expiringMemberships.forEach(membership => {
+      const member = membership.member;
+      console.log(`Membership for ${member.firstName} ${member.lastName} is expiring on ${membership.endDate}`);
+      // Example: Send WhatsApp notification
+      sendWhatsAppNotification(member.mobile, membership);
+    });
+
+  } catch (error) {
+    console.error("Error checking expiring memberships:", error);
+  }
+};
+
+// Example function to send WhatsApp notification
+const sendWhatsAppNotification = (mobile, membership) => {
+  const message = `Dear ${membership.member.firstName},\n\nYour membership is expiring on ${membership.endDate}. Please renew it to continue enjoying our services.\n\nThank you.`;
+
+  client.messages.create({
+    body: message,
+    from: 'whatsapp:+14155238886', // Replace with your Twilio WhatsApp number
+    to: `whatsapp:${mobile}`
+  }).then(message => console.log('WhatsApp message sent:', message.sid))
+    .catch(error => console.error('Error sending WhatsApp message:', error));
+};

@@ -31,9 +31,9 @@ const extensionSchema = new Schema(
 
 const membershipSchema = new Schema(
   {
-    type: {
-      type: String,
-      enum: ["Silver", "Gold", "Platinum"],
+    plan: {
+      type: Schema.Types.ObjectId,
+      ref: "Plan",
       required: true,
     },
     startDate: {
@@ -43,10 +43,6 @@ const membershipSchema = new Schema(
     },
     endDate: {
       type: Date,
-      required: true,
-    },
-    duration: {
-      type: Number,
       required: true,
     },
     status: {
