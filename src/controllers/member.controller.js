@@ -239,7 +239,7 @@ export const checkExpiringMemberships = async () => {
       const member = membership.member;
       console.log(`Membership for ${member.firstName} ${member.lastName} is expiring on ${membership.endDate}`);
       // Example: Send WhatsApp notification
-      sendWhatsAppNotification(member.mobile, membership);
+      //sendWhatsAppNotification(member.mobile, membership);
     });
 
   } catch (error) {

@@ -11,7 +11,7 @@ import { verifyJWT, verifyRole } from "../middleware/auth.middleware.js";
 const router = Router();
 
 // Create a new plan
-router.route("/add").post(verifyJWT, verifyRole(["admin"]), createPlan);
+router.route("/new").post(verifyJWT, verifyRole(["admin"]), createPlan);
 
 // Update an existing plan
 router.route("/edit/:planId").patch(verifyJWT, verifyRole(["admin"]), updatePlan);
