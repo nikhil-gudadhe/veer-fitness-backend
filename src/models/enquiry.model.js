@@ -5,23 +5,39 @@ const enquirySchema = new Schema(
     name: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
     mobile: {
       type: String,
-      required: true
+      required: true,
     },
     reference: {
       type: String,
-      required: true
+      required: true,
+    },
+    previousGymExperience: {
+      type: Boolean,
+      required: true,
+    },
+    goal: {
+      type: String,
+      required: true,
+    },
+    pastGymDuration: {
+      type: Number,
+      required: false,
+    },
+    target: {
+      type: String,
+      required: true,
     },
     note: {
       type: String,
-      required: true
+      required: true,
     }
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 

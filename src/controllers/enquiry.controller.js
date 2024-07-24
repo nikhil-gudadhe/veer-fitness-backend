@@ -5,17 +5,30 @@ import { apiError } from '../utils/apiError.js';
 
 // Create a new enquiry
 export const createEnquiry = asyncHandler(async (req, res) => {
-  const { name, mobile, reference, note } = req.body;
+  const {
+    name,
+    mobile,
+    reference,
+    note,
+    previousGymExperience,
+    goal,
+    pastGymDuration,
+    target,
+  } = req.body;
 
-  if ([name, mobile, reference, note].some(field => !field || field.trim() === '')) {
-    throw new apiError(400, 'All fields are required');
+  if ([name, mobile, reference, note, previousGymExperience, goal, target].some(field => field === undefined || field === '')) {
+    throw new apiError(400, 'Name, Mobile, Reference, Note, Previous Gym Experience, Goal, and Target fields are required');
   }
 
   const newEnquiry = new Enquiry({
     name,
     mobile,
     reference,
-    note
+    note,
+    previousGymExperience,
+    goal,
+    pastGymDuration,
+    target,
   });
 
   await newEnquiry.save();
