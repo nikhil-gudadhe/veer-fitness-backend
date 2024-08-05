@@ -2,7 +2,7 @@ import mongoose, { Schema } from 'mongoose';
 
 const enquirySchema = new Schema(
   {
-    name: {
+    fullName: {
       type: String,
       required: true,
       trim: true,
@@ -11,29 +11,29 @@ const enquirySchema = new Schema(
       type: String,
       required: true,
     },
-    reference: {
-      type: String,
-      required: true,
-    },
     previousGymExperience: {
       type: Boolean,
       required: true,
     },
-    goal: {
+    reference: {
+      type: String,
+      required: false,
+    },
+    fitnessGoal: {
       type: String,
       required: true,
-    },
-    pastGymDuration: {
-      type: Number,
-      required: false,
     },
     target: {
       type: String,
       required: true,
     },
-    note: {
+    preferredTimeSlot: {
       type: String,
       required: true,
+    },
+    note: {
+      type: String,
+      required: false,
     }
   },
   {

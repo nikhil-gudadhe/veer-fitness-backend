@@ -12,7 +12,6 @@ router.route("/logout").post(verifyJWT,logoutUser)
 router.route("/change-password").post(verifyJWT, changeCurrentPassword)
 router.route("/user-account").get(verifyJWT, getCurrentUser)
 
-
 // admin routes
 //router.route("/admin/users").get(verifyJWT, verifyRole(['admin']), getAllUsers);
 
