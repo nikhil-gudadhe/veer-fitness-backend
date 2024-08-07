@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createEnquiry, getAllEnquiries, getEnquiryById } from '../controllers/enquiry.controller.js';
+import { createEnquiry, getAllEnquiries, getEnquiryById, updateEnquiry } from '../controllers/enquiry.controller.js';
 import { verifyJWT, verifyRole } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -12,5 +12,8 @@ router.route('/all-enquiries').get(verifyJWT, verifyRole(['admin']), getAllEnqui
 
 // Route to get a single enquiry by ID
 router.route('/:enquiryId').get(verifyJWT, verifyRole(['admin']), getEnquiryById);
+
+// Route to update an existing enquiry
+router.route("/edit/:enquiryId").patch(verifyJWT, verifyRole(["admin"]), updateEnquiry);
 
 export default router;

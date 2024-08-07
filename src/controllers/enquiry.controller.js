@@ -63,3 +63,39 @@ export const getEnquiryById = asyncHandler(async (req, res) => {
 
   res.status(200).json(new apiResponse(200, enquiry, 'Enquiry fetched successfully'));
 });
+
+// Update an enquiry by ID
+export const updateEnquiry = asyncHandler(async (req, res) => {
+  const { enquiryId } = req.params;
+  
+  const {
+    fullName,
+    mobile,
+    previousGymExperience,
+    reference,
+    fitnessGoal,
+    target,
+    preferredTimeSlot,
+    note
+  } = req.body;
+
+  const enquiry = await Enquiry.findById(enquiryId);
+
+  if (!enquiry) {
+    throw new apiError(404, 'Enquiry not found');
+  }
+
+  // Update only the provided fields
+  if (fullName !== undefined) enquiry.fullName = fullName;
+  if (mobile !== undefined) enquiry.mobile = mobile;
+  if (previousGymExperience !== undefined) enquiry.previousGymExperience = previousGymExperience;
+  if (reference !== undefined) enquiry.reference = reference;
+  if (fitnessGoal !== undefined) enquiry.fitnessGoal = fitnessGoal;
+  if (target !== undefined) enquiry.target = target;
+  if (preferredTimeSlot !== undefined) enquiry.preferredTimeSlot = preferredTimeSlot;
+  if (note !== undefined) enquiry.note = note;
+
+  await enquiry.save();
+
+  res.status(200).json(new apiResponse(200, enquiryId, 'Enquiry updated successfully'));
+});
