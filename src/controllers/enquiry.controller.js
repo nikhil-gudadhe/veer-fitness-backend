@@ -21,7 +21,6 @@ export const createEnquiry = asyncHandler(async (req, res) => {
     { field: 'mobile', value: mobile },
     { field: 'previousGymExperience', value: previousGymExperience },
     { field: 'fitnessGoal', value: fitnessGoal },
-    { field: 'target', value: target },
     { field: 'preferredTimeSlot', value: preferredTimeSlot }
   ];
 

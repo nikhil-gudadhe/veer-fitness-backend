@@ -12,7 +12,7 @@ const enquirySchema = new Schema(
       required: true,
     },
     previousGymExperience: {
-      type: Boolean,
+      type: String,
       required: true,
     },
     reference: {
@@ -25,7 +25,7 @@ const enquirySchema = new Schema(
     },
     target: {
       type: String,
-      required: true,
+      required: false,
     },
     preferredTimeSlot: {
       type: String,
