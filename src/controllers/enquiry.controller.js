@@ -96,5 +96,5 @@ export const updateEnquiry = asyncHandler(async (req, res) => {
 
   await enquiry.save();
 
-  res.status(200).json(new apiResponse(200, enquiryId, 'Enquiry updated successfully'));
+  res.status(200).json(new apiResponse(200, enquiry, 'Enquiry updated successfully'));
 });
