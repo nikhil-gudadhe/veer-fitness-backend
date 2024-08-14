@@ -26,6 +26,7 @@ const memberSchema = new Schema(
     gender: {
       type: String,
       required: true,
+      enum: ["male", "female","other"]
     },
     age: {
       type: Number,

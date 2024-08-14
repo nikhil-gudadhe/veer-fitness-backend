@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiResponse } from "../utils/apiResponse.js";
 import { Member } from "../models/member.model.js";
@@ -41,50 +42,88 @@ export const registerMember = asyncHandler(async (req, res) => {
     throw new apiError(404, "Plan not found");
   }
 
-  const newMember = new Member({
-    firstName, 
-    lastName, 
-    gender, 
-    age, 
-    address, 
-    mobile, 
-    email,
-    joiningDate: new Date(),
-  });
+  // Start Mongoose session for transaction
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  await newMember.save();
+  try {
+    // Create new member
+    const newMember = new Member({
+      firstName, 
+      lastName, 
+      gender, 
+      age, 
+      address, 
+      mobile, 
+      email,
+      joiningDate: new Date(),
+    });
 
-  const startDate = new Date();
-  const endDate = calculateEndDate(startDate, plan.duration);
+    // Save new member within the session
+    await newMember.save({ session });
 
-  const newMembership = new Membership({
-    plan: plan._id,
-    startDate,
-    endDate,
-    status: "active",
-    member: newMember._id,
-  });
+    // Calculate membership dates
+    const startDate = new Date();
+    const endDate = calculateEndDate(startDate, plan.duration);
 
-  await newMembership.save();
+    // Create new membership
+    const newMembership = new Membership({
+      plan: plan._id,
+      startDate,
+      endDate,
+      status: "active",
+      member: newMember._id,
+    });
 
-  newMember.membership = newMembership._id;
-  await newMember.save();
+    // Save new membership within the session
+    await newMembership.save({ session });
 
-  res.status(201).json(new apiResponse(201, newMember, "Member registered successfully"));
+    // Link membership to the member
+    newMember.membership = newMembership._id;
+    await newMember.save({ session });
+
+    // Commit the transaction
+    await session.commitTransaction();
+    session.endSession();
+
+    // Optionally, populate the membership in the response
+    const savedMember = await Member.findById(newMember._id).populate('membership');
+
+    res.status(201).json(new apiResponse(201, savedMember, "Member registered successfully"));
+
+  } catch (error) {
+    // If any error occurs, abort the transaction
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
 });
 
-// Get all members
+// Get all members with their associated membership and plan
 export const getAllMembers = asyncHandler(async (req, res) => {
-  const members = await Member.find().populate('membership');
+  const members = await Member.find().populate({
+      path: 'membership',
+      populate: {
+          path: 'plan',
+          model: 'Plan'
+      }
+  });
+
   res.status(200).json(new apiResponse(200, members, "All members fetched successfully"));
 });
 
-// Get a single member
+// Get a single member with populated membership and plan
 export const getMemberById = asyncHandler(async (req, res) => {
-  const member = await Member.findById(req.params.memberId).populate('membership');
+  const member = await Member.findById(req.params.memberId).populate({
+      path: 'membership',
+      populate: {
+          path: 'plan',
+          model: 'Plan'
+      }
+  });
 
   if (!member) {
-    throw new apiError(404, "Member not found");
+      throw new apiError(404, "Member not found");
   }
 
   res.status(200).json(new apiResponse(200, member, "Member fetched successfully"));
@@ -93,7 +132,7 @@ export const getMemberById = asyncHandler(async (req, res) => {
 // Update a member using PATCH
 export const updateMember = asyncHandler(async (req, res) => {
   const { memberId } = req.params;
-  const updateFields = req.body;
+  const { email, mobile, ...updateFields } = req.body;
 
   const member = await Member.findById(memberId);
 
@@ -101,7 +140,17 @@ export const updateMember = asyncHandler(async (req, res) => {
     throw new apiError(404, "Member not found");
   }
 
-  // Apply updates only to the provided fields
+  // Check if the new email or mobile already exists on a different member
+  const existingMember = await Member.findOne({
+    $or: [{ email }, { mobile }],
+    _id: { $ne: memberId }, // Exclude the current member from the search
+  });
+
+  if (existingMember) {
+    throw new apiError(409, "Member with this email or mobile already exists");
+  }
+
+  // Apply updates only to the provided fields for the member
   Object.keys(updateFields).forEach(field => {
     if (updateFields[field] !== undefined && updateFields[field] !== null) {
       member[field] = updateFields[field];
@@ -109,10 +158,18 @@ export const updateMember = asyncHandler(async (req, res) => {
   });
 
   await member.save();
-  const updatedMember = await Member.findById(memberId).populate('membership');
+  
+  const updatedMember = await Member.findById(memberId)
+      .populate({
+          path: 'membership',
+          populate: { path: 'plan' }  // Ensure the plan is populated
+      });
 
   res.status(200).json(new apiResponse(200, updatedMember, "Member updated successfully"));
 });
+
+
+
 
 // Delete a member
 export const deleteMember = asyncHandler(async (req, res) => {
