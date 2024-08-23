@@ -8,6 +8,18 @@ import { apiError } from "../utils/apiError.js";
 //import twilio from 'twilio';
 
 // Function to calculate end date based on duration
+// const calculateEndDate = (startDate, duration) => {
+//   if (isNaN(duration) || duration <= 0 || duration > 12) {
+//     throw new Error("Invalid duration. Must be a number between 1 and 12 representing months.");
+//   }
+//   const endDate = new Date(startDate);
+//   if (isNaN(endDate.getTime())) {
+//     throw new Error("Invalid start date.");
+//   }
+//   endDate.setMonth(endDate.getMonth() + duration);
+//   return endDate;
+// };
+
 const calculateEndDate = (startDate, duration) => {
   if (isNaN(duration) || duration <= 0 || duration > 12) {
     throw new Error("Invalid duration. Must be a number between 1 and 12 representing months.");
@@ -16,7 +28,14 @@ const calculateEndDate = (startDate, duration) => {
   if (isNaN(endDate.getTime())) {
     throw new Error("Invalid start date.");
   }
+
+  console.log("Start Date:", endDate);
+  console.log("Duration (Months):", duration);
+
   endDate.setMonth(endDate.getMonth() + duration);
+
+  console.log("Calculated End Date:", endDate);
+
   return endDate;
 };
 
@@ -185,6 +204,72 @@ export const deleteMember = asyncHandler(async (req, res) => {
 });
 
 // Extend a membership or opt for a different plan
+// export const extendMembership = asyncHandler(async (req, res) => {
+//   const { memberId, duration, newPlanId } = req.body;
+//   const adminId = req.user._id;
+
+//   const member = await Member.findById(memberId).populate('membership');
+
+//   if (!member) {
+//     throw new apiError(404, "Member not found");
+//   }
+
+//   const currentMembership = await Membership.findById(member.membership._id);
+
+//   if (!currentMembership) {
+//     throw new apiError(404, "Membership not found");
+//   }
+
+//   if (newPlanId) {
+//     // Opt for a different plan
+//     const newPlan = await Plan.findById(newPlanId);
+//     if (!newPlan) {
+//       throw new apiError(404, "New plan not found");
+//     }
+
+//     // Deactivate current membership
+//     currentMembership.status = "inactive";
+//     await currentMembership.save();
+
+//     const startDate = new Date();
+//     const endDate = calculateEndDate(startDate, newPlan.duration);
+
+//     const newMembership = new Membership({
+//       plan: newPlan._id,
+//       startDate,
+//       endDate,
+//       status: "active",
+//       member: member._id,
+//     });
+
+//     await newMembership.save();
+
+//     member.membership = newMembership._id;
+//     await member.save();
+
+//     res.status(200).json(new apiResponse(200, newMembership, "Membership updated to a new plan successfully"));
+//   } else {
+//     // Extend the current membership
+//     const previousEndDate = currentMembership.endDate;
+//     const newEndDate = calculateEndDate(previousEndDate, duration);
+
+//     currentMembership.endDate = newEndDate;
+//     currentMembership.status = "active";
+//     currentMembership.extensions.push({
+//       previousEndDate,
+//       newEndDate,
+//       extendedBy: adminId,
+//       duration,
+//     });
+
+//     await currentMembership.save();
+
+//     res.status(200).json(new apiResponse(200, currentMembership, "Membership extended successfully"));
+//   }
+// });
+
+// Extend a membership or opt for a different plan
+// Extend a membership or opt for a different plan
 export const extendMembership = asyncHandler(async (req, res) => {
   const { memberId, duration, newPlanId } = req.body;
   const adminId = req.user._id;
@@ -241,11 +326,19 @@ export const extendMembership = asyncHandler(async (req, res) => {
       newEndDate,
       extendedBy: adminId,
       duration,
+      extendedAt: new Date(),
     });
+
+    // Log the extensions array before saving
+    console.log('Extensions before saving:', currentMembership.extensions);
 
     await currentMembership.save();
 
-    res.status(200).json(new apiResponse(200, currentMembership, "Membership extended successfully"));
+    // Log the extensions array after saving
+    const updatedMembership = await Membership.findById(currentMembership._id);
+    console.log('Extensions after saving:', updatedMembership.extensions);
+
+    res.status(200).json(new apiResponse(200, updatedMembership, "Membership extended successfully"));
   }
 });
 

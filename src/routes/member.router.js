@@ -19,7 +19,6 @@ router.route("/:memberId").get(verifyJWT, verifyRole(["admin", "trainer"]), getM
 
 router.route("/:memberId").delete(verifyJWT, verifyRole(["admin"]), deleteMember);
 
-// Route to extend membership
 router.route("/extend-membership").post(verifyJWT, verifyRole(["admin"]), extendMembership);
 
 export default router;

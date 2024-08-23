@@ -48,8 +48,20 @@ export const createEnquiry = asyncHandler(async (req, res) => {
 
 // Get all enquiries
 export const getAllEnquiries = asyncHandler(async (req, res) => {
-  const enquiries = await Enquiry.find();
-  res.status(200).json(new apiResponse(200, enquiries, 'All enquiries fetched successfully'));
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+
+  const skip = (page - 1) * limit;
+
+  const totalEnquiries = await Enquiry.countDocuments();
+  const enquiries = await Enquiry.find().skip(skip).limit(limit);
+
+  res.status(200).json(new apiResponse(200, {
+    enquiries,
+    totalEnquiries,
+    totalPages: Math.ceil(totalEnquiries / limit),
+    currentPage: page,
+  }, 'Enquiries fetched successfully'));
 });
 
 // Get a single enquiry by ID
