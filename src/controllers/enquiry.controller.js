@@ -64,6 +64,22 @@ export const getAllEnquiries = asyncHandler(async (req, res) => {
   }, 'Enquiries fetched successfully'));
 });
 
+//Search enquiries
+export const searchEnquiries = asyncHandler(async (req, res) => {
+  const { searchTerm } = req.query;
+
+  const searchQuery = {
+    $or: [
+      { fullName: { $regex: searchTerm, $options: 'i' } },
+      { mobile: { $regex: searchTerm, $options: 'i' } }
+    ],
+  };
+
+  const enquiries = await Enquiry.find(searchQuery);
+
+  res.status(200).json(new apiResponse(200, enquiries, 'Search results fetched successfully'));
+});
+
 // Get a single enquiry by ID
 export const getEnquiryById = asyncHandler(async (req, res) => {
   const enquiry = await Enquiry.findById(req.params.enquiryId);

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createEnquiry, getAllEnquiries, getEnquiryById, updateEnquiry } from '../controllers/enquiry.controller.js';
+import { createEnquiry, getAllEnquiries, searchEnquiries, getEnquiryById, updateEnquiry } from '../controllers/enquiry.controller.js';
 import { verifyJWT, verifyRole } from '../middleware/auth.middleware.js';
 
 const router = Router();
@@ -9,6 +9,9 @@ router.route('/new').post(createEnquiry);
 
 // Route to get all enquiries
 router.route('/all-enquiries').get(verifyJWT, verifyRole(['admin']), getAllEnquiries);
+
+// Route to search enquiries
+router.route("/search").get(verifyJWT, verifyRole(["admin"]), searchEnquiries);
 
 // Route to get a single enquiry by ID
 router.route('/:enquiryId').get(verifyJWT, verifyRole(['admin']), getEnquiryById);
