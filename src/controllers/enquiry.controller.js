@@ -67,17 +67,32 @@ export const getAllEnquiries = asyncHandler(async (req, res) => {
 //Search enquiries
 export const searchEnquiries = asyncHandler(async (req, res) => {
   const { searchTerm } = req.query;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
 
-  const searchQuery = {
+  if (!searchTerm) {
+    throw new apiError(400, 'Search term is required');
+  }
+
+  const searchRegex = new RegExp(searchTerm, 'i');
+
+  const query = {
     $or: [
-      { fullName: { $regex: searchTerm, $options: 'i' } },
-      { mobile: { $regex: searchTerm, $options: 'i' } }
+      { fullName: searchRegex },
+      { mobile: searchRegex }
     ],
   };
 
-  const enquiries = await Enquiry.find(searchQuery);
+  const totalEnquiries = await Enquiry.countDocuments(query);
+  const enquiries = await Enquiry.find(query).skip(skip).limit(limit);
 
-  res.status(200).json(new apiResponse(200, enquiries, 'Search results fetched successfully'));
+  res.status(200).json(new apiResponse(200, {
+    enquiries,
+    totalEnquiries,
+    totalPages: Math.ceil(totalEnquiries / limit),
+    currentPage: page,
+  }, 'Search results fetched successfully'));
 });
 
 // Get a single enquiry by ID
@@ -125,4 +140,18 @@ export const updateEnquiry = asyncHandler(async (req, res) => {
   await enquiry.save();
 
   res.status(200).json(new apiResponse(200, enquiry, 'Enquiry updated successfully'));
+});
+
+// Delete enquiry by ID
+export const deleteEnquiry = asyncHandler(async (req, res) => {
+  const enquiry = await Enquiry.findById(req.params.id);
+
+  if (!enquiry) {
+    res.status(404);
+    throw new Error('Enquiry not found');
+  }
+
+  await Enquiry.deleteOne({ _id: req.params.id });
+
+  res.status(200).json(new apiResponse(200, { id: req.params.id }, 'Enquiry deleted successfully'));
 });
