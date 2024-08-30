@@ -7,19 +7,6 @@ import { Plan } from "../models/plan.model.js";
 import { apiError } from "../utils/apiError.js";
 //import twilio from 'twilio';
 
-// Function to calculate end date based on duration
-// const calculateEndDate = (startDate, duration) => {
-//   if (isNaN(duration) || duration <= 0 || duration > 12) {
-//     throw new Error("Invalid duration. Must be a number between 1 and 12 representing months.");
-//   }
-//   const endDate = new Date(startDate);
-//   if (isNaN(endDate.getTime())) {
-//     throw new Error("Invalid start date.");
-//   }
-//   endDate.setMonth(endDate.getMonth() + duration);
-//   return endDate;
-// };
-
 const calculateEndDate = (startDate, duration) => {
   if (isNaN(duration) || duration <= 0 || duration > 12) {
     throw new Error("Invalid duration. Must be a number between 1 and 12 representing months.");
@@ -120,15 +107,82 @@ export const registerMember = asyncHandler(async (req, res) => {
 
 // Get all members with their associated membership and plan
 export const getAllMembers = asyncHandler(async (req, res) => {
-  const members = await Member.find().populate({
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+
+  const skip = (page - 1) * limit;
+
+  const totalMembers = await Member.countDocuments();
+
+  const members = await Member.find()
+    .populate({
       path: 'membership',
       populate: {
-          path: 'plan',
-          model: 'Plan'
-      }
-  });
+        path: 'plan',
+        model: 'Plan',
+      },
+    })
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
 
-  res.status(200).json(new apiResponse(200, members, "All members fetched successfully"));
+  res.status(200).json(
+    new apiResponse(
+      200,
+      {
+        members,
+        totalMembers,
+        totalPages: Math.ceil(totalMembers / limit),
+        currentPage: page,
+      },
+      'All members fetched successfully'
+    )
+  );
+});
+
+// Search members based on firstname, lastname, mobile, and email 
+export const searchMembers = asyncHandler(async (req, res) => {
+  const { searchTerm } = req.query;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+
+  const skip = (page - 1) * limit;
+
+  const searchQuery = {
+    $or: [
+      { firstName: { $regex: searchTerm, $options: 'i' } },
+      { lastName: { $regex: searchTerm, $options: 'i' } },
+      { mobile: { $regex: searchTerm, $options: 'i' } },
+      { email: { $regex: searchTerm, $options: 'i' } },
+    ],
+  };
+
+  const totalMembers = await Member.countDocuments(searchQuery);
+
+  const members = await Member.find(searchQuery)
+    .populate({
+      path: 'membership',
+      populate: {
+        path: 'plan',
+        model: 'Plan',
+      },
+    })
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
+
+  res.status(200).json(
+    new apiResponse(
+      200,
+      {
+        members,
+        totalMembers,
+        totalPages: Math.ceil(totalMembers / limit),
+        currentPage: page,
+      },
+      'Members fetched successfully'
+    )
+  );
 });
 
 // Get a single member with populated membership and plan
@@ -187,9 +241,6 @@ export const updateMember = asyncHandler(async (req, res) => {
   res.status(200).json(new apiResponse(200, updatedMember, "Member updated successfully"));
 });
 
-
-
-
 // Delete a member
 export const deleteMember = asyncHandler(async (req, res) => {
   const member = await Member.findByIdAndDelete(req.params.memberId);
@@ -203,72 +254,6 @@ export const deleteMember = asyncHandler(async (req, res) => {
   res.status(200).json(new apiResponse(200, {}, "Member deleted successfully"));
 });
 
-// Extend a membership or opt for a different plan
-// export const extendMembership = asyncHandler(async (req, res) => {
-//   const { memberId, duration, newPlanId } = req.body;
-//   const adminId = req.user._id;
-
-//   const member = await Member.findById(memberId).populate('membership');
-
-//   if (!member) {
-//     throw new apiError(404, "Member not found");
-//   }
-
-//   const currentMembership = await Membership.findById(member.membership._id);
-
-//   if (!currentMembership) {
-//     throw new apiError(404, "Membership not found");
-//   }
-
-//   if (newPlanId) {
-//     // Opt for a different plan
-//     const newPlan = await Plan.findById(newPlanId);
-//     if (!newPlan) {
-//       throw new apiError(404, "New plan not found");
-//     }
-
-//     // Deactivate current membership
-//     currentMembership.status = "inactive";
-//     await currentMembership.save();
-
-//     const startDate = new Date();
-//     const endDate = calculateEndDate(startDate, newPlan.duration);
-
-//     const newMembership = new Membership({
-//       plan: newPlan._id,
-//       startDate,
-//       endDate,
-//       status: "active",
-//       member: member._id,
-//     });
-
-//     await newMembership.save();
-
-//     member.membership = newMembership._id;
-//     await member.save();
-
-//     res.status(200).json(new apiResponse(200, newMembership, "Membership updated to a new plan successfully"));
-//   } else {
-//     // Extend the current membership
-//     const previousEndDate = currentMembership.endDate;
-//     const newEndDate = calculateEndDate(previousEndDate, duration);
-
-//     currentMembership.endDate = newEndDate;
-//     currentMembership.status = "active";
-//     currentMembership.extensions.push({
-//       previousEndDate,
-//       newEndDate,
-//       extendedBy: adminId,
-//       duration,
-//     });
-
-//     await currentMembership.save();
-
-//     res.status(200).json(new apiResponse(200, currentMembership, "Membership extended successfully"));
-//   }
-// });
-
-// Extend a membership or opt for a different plan
 // Extend a membership or opt for a different plan
 export const extendMembership = asyncHandler(async (req, res) => {
   const { memberId, duration, newPlanId } = req.body;

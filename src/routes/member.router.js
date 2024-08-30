@@ -1,13 +1,14 @@
 import { Router } from "express";
-import { registerMember, getAllMembers, getMemberById, updateMember, deleteMember, extendMembership, getActiveMembers, getInactiveMembers } from "../controllers/member.controller.js";
+import { registerMember, getAllMembers, searchMembers, getMemberById, updateMember, deleteMember, extendMembership, getActiveMembers, getInactiveMembers } from "../controllers/member.controller.js";
 import { verifyJWT, verifyRole } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
-// Routes for member management
 router.route("/register").post(verifyJWT, verifyRole(["admin"]), registerMember);
 
 router.route("/all-members").get(verifyJWT, verifyRole(["admin", "trainer"]), getAllMembers);
+
+router.route("/search").get(verifyJWT, verifyRole(["admin", "trainer"]), searchMembers);
 
 router.route("/active-members").get(verifyJWT, verifyRole(["admin", "trainer"]), getActiveMembers);
 

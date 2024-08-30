@@ -54,7 +54,7 @@ export const getAllEnquiries = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
 
   const totalEnquiries = await Enquiry.countDocuments();
-  const enquiries = await Enquiry.find().skip(skip).limit(limit);
+  const enquiries = await Enquiry.find().sort( { createdAt: -1 } ).skip(skip).limit(limit);
 
   res.status(200).json(new apiResponse(200, {
     enquiries,
