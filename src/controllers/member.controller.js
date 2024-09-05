@@ -142,24 +142,17 @@ export const getAllMembers = asyncHandler(async (req, res) => {
 
 // Search members based on firstname, lastname, mobile, and email 
 export const searchMembers = asyncHandler(async (req, res) => {
-  const { searchTerm } = req.query;
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
-
+  const { searchTerm = '', page = 1, limit = 10 } = req.query;
+  const searchQuery = String(searchTerm);
   const skip = (page - 1) * limit;
 
-  const searchQuery = {
+  const members = await Member.find({
     $or: [
-      { firstName: { $regex: searchTerm, $options: 'i' } },
-      { lastName: { $regex: searchTerm, $options: 'i' } },
-      { mobile: { $regex: searchTerm, $options: 'i' } },
-      { email: { $regex: searchTerm, $options: 'i' } },
+      { firstName: { $regex: searchQuery, $options: 'i' } },
+      { lastName: { $regex: searchQuery, $options: 'i' } },
+      { mobile: { $regex: searchQuery, $options: 'i' } },
     ],
-  };
-
-  const totalMembers = await Member.countDocuments(searchQuery);
-
-  const members = await Member.find(searchQuery)
+  })
     .populate({
       path: 'membership',
       populate: {
@@ -168,8 +161,15 @@ export const searchMembers = asyncHandler(async (req, res) => {
       },
     })
     .skip(skip)
-    .limit(limit)
-    .sort({ createdAt: -1 });
+    .limit(limit);
+
+  const totalMembers = await Member.countDocuments({
+    $or: [
+      { firstName: { $regex: searchQuery, $options: 'i' } },
+      { lastName: { $regex: searchQuery, $options: 'i' } },
+      { mobile: { $regex: searchQuery, $options: 'i' } },
+    ],
+  });
 
   res.status(200).json(
     new apiResponse(
@@ -178,7 +178,7 @@ export const searchMembers = asyncHandler(async (req, res) => {
         members,
         totalMembers,
         totalPages: Math.ceil(totalMembers / limit),
-        currentPage: page,
+        currentPage: Number(page),
       },
       'Members fetched successfully'
     )
