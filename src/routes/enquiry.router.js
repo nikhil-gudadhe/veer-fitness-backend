@@ -5,7 +5,7 @@ import { verifyJWT, verifyRole } from '../middleware/auth.middleware.js';
 const router = Router();
 
 // Route to create a new enquiry
-router.route('/new').post(createEnquiry);
+router.route('/new').post(verifyJWT, verifyRole(['admin']),createEnquiry);
 
 // Route to get all enquiries
 router.route('/all-enquiries').get(verifyJWT, verifyRole(['admin']), getAllEnquiries);
