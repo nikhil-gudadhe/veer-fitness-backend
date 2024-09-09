@@ -7,6 +7,14 @@ const invoiceSchema = new Schema(
       ref: 'Member',
       required: true,
     },
+    memberName: {
+      type: String,
+      required: true,
+    },
+    memberEmail: {
+      type: String,
+      required: true,
+    },
     planName: {
       type: String,
       required: true,
