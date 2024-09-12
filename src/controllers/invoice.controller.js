@@ -49,3 +49,16 @@ export const createInvoice = asyncHandler(async (req, res) => {
 
   return res.status(201).json(new apiResponse(201, invoice, 'Invoice generated successfully'));
 });
+
+// Fetch invoice by memberId
+export const fetchInvoiceByMemberId = asyncHandler(async (req, res) => {
+  const { memberId } = req.params;
+  
+  const invoice = await Invoice.findOne({ member: memberId });
+  
+  if (!invoice) {
+    return res.status(404).json({ message: "Invoice not found" });
+  }
+
+  res.status(200).json(invoice);
+});
