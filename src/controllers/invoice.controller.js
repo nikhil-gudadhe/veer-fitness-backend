@@ -4,6 +4,7 @@ import { apiResponse } from '../utils/apiResponse.js';
 import { apiError } from '../utils/apiError.js';
 import { Member } from '../models/member.model.js';
 import { Membership } from '../models/membership.model.js';
+import { v4 as uuidv4 } from 'uuid';
 
 // Create a new invoice
 export const createInvoice = asyncHandler(async (req, res) => { 
@@ -26,11 +27,13 @@ export const createInvoice = asyncHandler(async (req, res) => {
     ? membership.extensions[membership.extensions.length - 1]  // Get the last extension
     : null;
 
-  console.log('Latest Extension:', latestExtension);
+   // Generate a unique invoice ID
+   const invoiceId = `INV-${Date.now()}-${uuidv4().slice(0, 6)}`;
 
   // Prepare the invoice data based on the latest extension or membership details
   const invoiceData = {
     member: member._id,
+    invoiceId: invoiceId,
     memberName: `${member.firstName} ${member.lastName}`, 
     memberEmail: member.email,
     planName: membership.plan.name,
@@ -42,6 +45,8 @@ export const createInvoice = asyncHandler(async (req, res) => {
     previousEndDate: latestExtension ? latestExtension.previousEndDate : membership.endDate,  // If no extension, previous and new endDate are the same
     extensionDuration: latestExtension ? latestExtension.duration : null,  // Duration from extension or null
   };
+
+console.log("invoiceData ", invoiceData)
 
   // Create and save the invoice
   const invoice = new Invoice(invoiceData);
