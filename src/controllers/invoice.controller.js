@@ -67,3 +67,16 @@ export const fetchInvoiceByMemberId = asyncHandler(async (req, res) => {
     res.status(200).json(member);
   });
   
+  // Controller method to delete all invoices
+export const deleteAllInvoices = asyncHandler(async (req, res) => {
+  try {
+      const result = await Invoice.deleteMany({}); // Delete all documents in the Invoice collection
+      res.status(200).json({
+          success: true,
+          message: 'All invoices have been deleted successfully',
+          deletedCount: result.deletedCount // Returns the number of deleted documents
+      });
+  } catch (error) {
+      throw new apiError(500, 'Error deleting invoices');
+  }
+});

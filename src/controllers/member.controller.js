@@ -182,21 +182,49 @@ export const searchMembers = asyncHandler(async (req, res) => {
   );
 });
 
-// Get a single member with populated membership and plan
+// Get a single member with populated membership and plan, limited to 5 extensions
 export const getMemberById = asyncHandler(async (req, res) => {
-  const member = await Member.findById(req.params.memberId).populate({
-      path: 'membership',
-      populate: {
-          path: 'plan',
-          model: 'Plan'
+  const member = await Member.aggregate([
+    { $match: { _id: new mongoose.Types.ObjectId(req.params.memberId) } },
+    {
+      $lookup: {
+        from: 'memberships',
+        localField: 'membership',
+        foreignField: '_id',
+        as: 'membership'
       }
-  });
+    },
+    { $unwind: '$membership' },
+    {
+      $lookup: {
+        from: 'plans',
+        localField: 'membership.plan',
+        foreignField: '_id',
+        as: 'membership.plan'
+      }
+    },
+    { $unwind: '$membership.plan' },
+    {
+      $project: {
+        "membership.extensions": { $slice: ['$membership.extensions', -5] }, // Limit to last 5 extensions
+        "membership.plan": 1,
+        "firstName": 1,
+        "lastName": 1,
+        "email": 1,
+        "mobile": 1,
+        "gender": 1,
+        "age": 1,
+        "address": 1,
+        "joiningDate": 1
+      }
+    }
+  ]);
 
-  if (!member) {
-      throw new apiError(404, "Member not found");
+  if (!member || member.length === 0) {
+    throw new apiError(404, "Member not found");
   }
 
-  res.status(200).json(new apiResponse(200, member, "Member fetched successfully"));
+  res.status(200).json(new apiResponse(200, member[0], "Member fetched successfully"));
 });
 
 // Update a member using PATCH
