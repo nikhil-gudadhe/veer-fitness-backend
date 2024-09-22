@@ -4,7 +4,9 @@ import { apiResponse } from "../utils/apiResponse.js";
 import { Member } from "../models/member.model.js";
 import { Membership } from "../models/membership.model.js";
 import { Plan } from "../models/plan.model.js";
+// import { createInvoice } from "./invoice.controller.js";
 import { apiError } from "../utils/apiError.js";
+import { generateInvoice } from "../utils/invoiceUtils.js";
 //import twilio from 'twilio';
 
 const calculateEndDate = (startDate, duration) => {
@@ -16,12 +18,7 @@ const calculateEndDate = (startDate, duration) => {
     throw new Error("Invalid start date.");
   }
 
-  console.log("Start Date:", endDate);
-  console.log("Duration (Months):", duration);
-
   endDate.setMonth(endDate.getMonth() + duration);
-
-  console.log("Calculated End Date:", endDate);
 
   return endDate;
 };
@@ -298,7 +295,10 @@ export const extendMembership = asyncHandler(async (req, res) => {
     member.membership = newMembership._id;
     await member.save();
 
-    res.status(200).json(new apiResponse(200, newMembership, "Membership updated to a new plan successfully"));
+    // Generate a new invoice for the new plan
+    const invoice = await generateInvoice(member);
+
+    res.status(200).json(new apiResponse(200, { newMembership, invoice }, "Membership updated to a new plan successfully"));
   } else {
     // Extend the current membership
     const previousEndDate = currentMembership.endDate;
@@ -314,16 +314,14 @@ export const extendMembership = asyncHandler(async (req, res) => {
       extendedAt: new Date(),
     });
 
-    // Log the extensions array before saving
-    console.log('Extensions before saving:', currentMembership.extensions);
-
     await currentMembership.save();
 
-    // Log the extensions array after saving
-    const updatedMembership = await Membership.findById(currentMembership._id);
-    console.log('Extensions after saving:', updatedMembership.extensions);
+    const updatedMembership = await Membership.findById(currentMembership._id).populate('plan');
 
-    res.status(200).json(new apiResponse(200, updatedMembership, "Membership extended successfully"));
+    // Generate a new invoice for the membership extension
+    const invoice = await generateInvoice(member);
+
+    res.status(200).json(new apiResponse(200, { updatedMembership, invoice }, "Membership extended successfully"));
   }
 });
 

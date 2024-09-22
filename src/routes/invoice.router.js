@@ -5,7 +5,7 @@ import { verifyJWT, verifyRole } from '../middleware/auth.middleware.js';
 const router = Router();
 
 // Create a new invoice
-router.route('/generate-invoice').post(verifyJWT, verifyRole(['admin']),createInvoice);
+router.route('/generate-invoice').post(verifyJWT, verifyRole(['admin']), createInvoice);
 
 // fetch member invoices
 router.route('/fetch-invoices/:memberId').get(verifyJWT, verifyRole(['admin']),fetchInvoiceByMemberId);
