@@ -11,7 +11,7 @@ router.route('/generate-invoice').post(verifyJWT, verifyRole(['admin']), createI
 router.route('/fetch-invoices/:memberId').get(verifyJWT, verifyRole(['admin']),fetchInvoiceByMemberId);
 
 // Delete all invoices
-//router.route('/delete-all').delete(verifyJWT, verifyRole(['admin']), deleteAllInvoices)
+router.route('/delete-all').delete(verifyJWT, verifyRole(['admin']), deleteAllInvoices)
 
 
 export default router;

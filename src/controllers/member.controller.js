@@ -26,6 +26,7 @@ const calculateEndDate = (startDate, duration) => {
 // Register new member
 export const registerMember = asyncHandler(async (req, res) => {
   const { firstName, lastName, gender, age, address, mobile, email, planId } = req.body;
+  const adminId = req.user._id;
 
   // Validate required fields
   if ([firstName, lastName, gender, age, mobile, email, planId].some(field => field === undefined || field === null || field === '')) {
@@ -76,6 +77,13 @@ export const registerMember = asyncHandler(async (req, res) => {
       endDate,
       status: "active",
       member: newMember._id,
+      // Add an initial extension as part of the membership creation
+      extensions: [{
+        previousEndDate: startDate,  // Since it's a new member, use startDate as previousEndDate
+        newEndDate: endDate,
+        extendedBy: adminId, 
+        duration: plan.duration
+      }]
     });
 
     // Save new membership within the session
@@ -92,7 +100,11 @@ export const registerMember = asyncHandler(async (req, res) => {
     // Optionally, populate the membership in the response
     const savedMember = await Member.findById(newMember._id).populate('membership');
 
-    res.status(201).json(new apiResponse(201, savedMember, "Member registered successfully"));
+    // Generate the first invoice
+    const invoice = await generateInvoice(savedMember);
+
+    // Return member and invoice in the response
+    res.status(201).json(new apiResponse(201, { savedMember, invoice }, "Member registered successfully"));
 
   } catch (error) {
     // If any error occurs, abort the transaction
@@ -101,6 +113,86 @@ export const registerMember = asyncHandler(async (req, res) => {
     throw error;
   }
 });
+
+
+// Register new member
+// export const registerMember = asyncHandler(async (req, res) => {
+//   const { firstName, lastName, gender, age, address, mobile, email, planId } = req.body;
+
+//   // Validate required fields
+//   if ([firstName, lastName, gender, age, mobile, email, planId].some(field => field === undefined || field === null || field === '')) {
+//     throw new apiError(400, "All fields are required");
+//   }
+
+//   const existingMember = await Member.findOne({
+//     $or: [{ mobile }, { email }]
+//   });
+
+//   if (existingMember) {
+//     throw new apiError(409, "Member with this email or mobile already exists");
+//   }
+
+//   const plan = await Plan.findById(planId);
+//   if (!plan) {
+//     throw new apiError(404, "Plan not found");
+//   }
+
+//   // Start Mongoose session for transaction
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+
+//   try {
+//     // Create new member
+//     const newMember = new Member({
+//       firstName, 
+//       lastName, 
+//       gender, 
+//       age, 
+//       address, 
+//       mobile, 
+//       email,
+//       joiningDate: new Date(),
+//     });
+
+//     // Save new member within the session
+//     await newMember.save({ session });
+
+//     // Calculate membership dates
+//     const startDate = new Date();
+//     const endDate = calculateEndDate(startDate, plan.duration);
+
+//     // Create new membership
+//     const newMembership = new Membership({
+//       plan: plan._id,
+//       startDate,
+//       endDate,
+//       status: "active",
+//       member: newMember._id,
+//     });
+
+//     // Save new membership within the session
+//     await newMembership.save({ session });
+
+//     // Link membership to the member
+//     newMember.membership = newMembership._id;
+//     await newMember.save({ session });
+
+//     // Commit the transaction
+//     await session.commitTransaction();
+//     session.endSession();
+
+//     // Optionally, populate the membership in the response
+//     const savedMember = await Member.findById(newMember._id).populate('membership');
+
+//     res.status(201).json(new apiResponse(201, savedMember, "Member registered successfully"));
+
+//   } catch (error) {
+//     // If any error occurs, abort the transaction
+//     await session.abortTransaction();
+//     session.endSession();
+//     throw error;
+//   }
+// });
 
 // Get all members with their associated membership and plan
 export const getAllMembers = asyncHandler(async (req, res) => {
@@ -208,6 +300,8 @@ export const getMemberById = asyncHandler(async (req, res) => {
       $project: {
         "membership.extensions": { $slice: ['$membership.extensions', -5] }, // Limit to last 5 extensions
         "membership.plan": 1,
+        "membership.startDate": 1,
+        "membership.endDate": 1,
         "firstName": 1,
         "lastName": 1,
         "email": 1,
