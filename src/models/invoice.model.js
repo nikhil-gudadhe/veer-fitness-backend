@@ -7,6 +7,11 @@ const invoiceSchema = new Schema(
       ref: 'Member',
       required: true,
     },
+    membership: { 
+      type: Schema.Types.ObjectId,
+      ref: 'Membership', 
+      required: true,
+    },
     invoiceId: {
       type: String,
       required: true,  
