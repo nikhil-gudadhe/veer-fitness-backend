@@ -1,3 +1,5 @@
+import mongoose, { Schema } from "mongoose";
+
 const extensionSchema = new Schema(
   {
     previousEndDate: {
@@ -21,13 +23,44 @@ const extensionSchema = new Schema(
       type: Number,
       required: true,
     },
-    invoiceId: {
-      type: Schema.Types.ObjectId,
-      ref: "Invoice",
-      required: true,
-    },
   },
   {
-    _id: false,
+    _id: true,
+    timestamps: true,
   }
 );
+
+const membershipSchema = new Schema(
+  {
+    plan: {
+      type: Schema.Types.ObjectId,
+      ref: "Plan",
+      required: true,
+    },
+    startDate: {
+      type: Date,
+      required: true,
+      default: Date.now,
+    },
+    endDate: {
+      type: Date,
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+      required: true,
+      default: "active",
+    },
+    member: {
+      type: Schema.Types.ObjectId,
+      ref: "Member",
+    },
+    extensions: [extensionSchema],
+  },
+  {
+    timestamps: true,
+  }
+);
+
+export const Membership = mongoose.model("Membership", membershipSchema);

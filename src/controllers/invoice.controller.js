@@ -45,27 +45,36 @@ export const fetchByMemberId = asyncHandler(async (req, res) => {
 
 
 export const fetchInvoiceByMemberId = asyncHandler(async (req, res) => {
-    const { memberId } = req.params;
-  
-    // Find the member and slice the extensions to the last 5
-    const member = await Member.findById(memberId)
-      .populate({
-        path: 'membership',
-        populate: {
-          path: 'plan',
-        },
-        select: {
-          // Apply slice on the extensions array
-          extensions: { $slice: -5 }, // Retrieve the last 5 extensions
-        }
-      });
-  
-    if (!member) {
-      return res.status(404).json({ message: 'Member not found' });
-    }
-  
-    res.status(200).json(member);
+  const { memberId } = req.params;
+
+  // Find the member and limit to the last 5 extensions
+  const member = await Member.findById(memberId)
+    .populate({
+      path: 'membership',
+      populate: {
+        path: 'plan',
+      },
+      select: {
+        extensions: { $slice: -5 }, // Retrieve the last 5 extensions
+      }
+    });
+
+  if (!member) {
+    return res.status(404).json({ message: 'Member not found' });
+  }
+
+  // Get the last 5 extensions' IDs
+  const extensionIds = member.membership?.extensions.map(extension => extension._id);
+
+  // Fetch invoices for the retrieved extensions
+  const invoices = await Invoice.find({ extensionId: { $in: extensionIds } });
+
+  // Return the member data and associated invoices
+  res.status(200).json({
+    member,
+    invoices, // Return the invoices associated with the last 5 extensions
   });
+});
   
   // Controller method to delete all invoices
 export const deleteAllInvoices = asyncHandler(async (req, res) => {

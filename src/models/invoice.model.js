@@ -12,6 +12,11 @@ const invoiceSchema = new Schema(
       ref: 'Membership', 
       required: true,
     },
+    extensionId: { 
+      type: Schema.Types.ObjectId, 
+      ref: 'Extension', 
+      required: false 
+    },
     invoiceId: {
       type: String,
       required: true,  

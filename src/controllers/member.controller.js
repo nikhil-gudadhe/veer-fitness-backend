@@ -4,24 +4,53 @@ import { apiResponse } from "../utils/apiResponse.js";
 import { Member } from "../models/member.model.js";
 import { Membership } from "../models/membership.model.js";
 import { Plan } from "../models/plan.model.js";
-// import { createInvoice } from "./invoice.controller.js";
 import { apiError } from "../utils/apiError.js";
 import { generateInvoice } from "../utils/invoiceUtils.js";
 //import twilio from 'twilio';
 
 const calculateEndDate = (startDate, duration) => {
+  // Validate the duration (must be between 1 and 12 months)
   if (isNaN(duration) || duration <= 0 || duration > 12) {
     throw new Error("Invalid duration. Must be a number between 1 and 12 representing months.");
   }
+
+  // Convert startDate to a Date object, if it's not already
   const endDate = new Date(startDate);
+  
+  // Validate that startDate is a valid date
   if (isNaN(endDate.getTime())) {
     throw new Error("Invalid start date.");
   }
 
+  // Store the original day of the startDate to handle month overflow edge cases
+  const originalDay = endDate.getDate();
+
+  // Add the duration (in months) to the current month
   endDate.setMonth(endDate.getMonth() + duration);
+
+  // Handle month overflow issues (e.g., if originalDay is 31 and the new month has fewer days)
+  if (endDate.getDate() < originalDay) {
+    // Reset to the last day of the previous month in case of overflow
+    endDate.setDate(0);
+  }
 
   return endDate;
 };
+
+
+// const calculateEndDate = (startDate, duration) => {
+//   if (isNaN(duration) || duration <= 0 || duration > 12) {
+//     throw new Error("Invalid duration. Must be a number between 1 and 12 representing months.");
+//   }
+//   const endDate = new Date(startDate);
+//   if (isNaN(endDate.getTime())) {
+//     throw new Error("Invalid start date.");
+//   }
+
+//   endDate.setMonth(endDate.getMonth() + duration);
+
+//   return endDate;
+// };
 
 // Register new member
 export const registerMember = asyncHandler(async (req, res) => {
@@ -53,12 +82,12 @@ export const registerMember = asyncHandler(async (req, res) => {
   try {
     // Create new member
     const newMember = new Member({
-      firstName, 
-      lastName, 
-      gender, 
-      age, 
-      address, 
-      mobile, 
+      firstName,
+      lastName,
+      gender,
+      age,
+      address,
+      mobile,
       email,
       joiningDate: new Date(),
     });
@@ -70,18 +99,17 @@ export const registerMember = asyncHandler(async (req, res) => {
     const startDate = new Date();
     const endDate = calculateEndDate(startDate, plan.duration);
 
-    // Create new membership
+    // Create new membership with an initial extension
     const newMembership = new Membership({
       plan: plan._id,
       startDate,
       endDate,
       status: "active",
       member: newMember._id,
-      // Add an initial extension as part of the membership creation
       extensions: [{
         previousEndDate: startDate,  // Since it's a new member, use startDate as previousEndDate
         newEndDate: endDate,
-        extendedBy: adminId, 
+        extendedBy: adminId,
         duration: plan.duration
       }]
     });
@@ -97,102 +125,24 @@ export const registerMember = asyncHandler(async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    // Optionally, populate the membership in the response
-    const savedMember = await Member.findById(newMember._id).populate('membership');
+    // Get the latest extension ID
+    const latestExtensionId = newMembership.extensions[0]._id; 
 
-    // Generate the first invoice
-    const invoice = await generateInvoice(savedMember);
+    // Generate the first invoice linked with this extension and membership
+    const invoice = await generateInvoice(newMember, latestExtensionId);
 
     // Return member and invoice in the response
-    res.status(201).json(new apiResponse(201, { savedMember, invoice }, "Member registered successfully"));
+    res.status(201).json(new apiResponse(201, { newMember, invoice }, "Member registered successfully"));
 
   } catch (error) {
-    // If any error occurs, abort the transaction
-    await session.abortTransaction();
+    // Abort transaction only if it hasn't been committed
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     session.endSession();
     throw error;
   }
 });
-
-
-// Register new member
-// export const registerMember = asyncHandler(async (req, res) => {
-//   const { firstName, lastName, gender, age, address, mobile, email, planId } = req.body;
-
-//   // Validate required fields
-//   if ([firstName, lastName, gender, age, mobile, email, planId].some(field => field === undefined || field === null || field === '')) {
-//     throw new apiError(400, "All fields are required");
-//   }
-
-//   const existingMember = await Member.findOne({
-//     $or: [{ mobile }, { email }]
-//   });
-
-//   if (existingMember) {
-//     throw new apiError(409, "Member with this email or mobile already exists");
-//   }
-
-//   const plan = await Plan.findById(planId);
-//   if (!plan) {
-//     throw new apiError(404, "Plan not found");
-//   }
-
-//   // Start Mongoose session for transaction
-//   const session = await mongoose.startSession();
-//   session.startTransaction();
-
-//   try {
-//     // Create new member
-//     const newMember = new Member({
-//       firstName, 
-//       lastName, 
-//       gender, 
-//       age, 
-//       address, 
-//       mobile, 
-//       email,
-//       joiningDate: new Date(),
-//     });
-
-//     // Save new member within the session
-//     await newMember.save({ session });
-
-//     // Calculate membership dates
-//     const startDate = new Date();
-//     const endDate = calculateEndDate(startDate, plan.duration);
-
-//     // Create new membership
-//     const newMembership = new Membership({
-//       plan: plan._id,
-//       startDate,
-//       endDate,
-//       status: "active",
-//       member: newMember._id,
-//     });
-
-//     // Save new membership within the session
-//     await newMembership.save({ session });
-
-//     // Link membership to the member
-//     newMember.membership = newMembership._id;
-//     await newMember.save({ session });
-
-//     // Commit the transaction
-//     await session.commitTransaction();
-//     session.endSession();
-
-//     // Optionally, populate the membership in the response
-//     const savedMember = await Member.findById(newMember._id).populate('membership');
-
-//     res.status(201).json(new apiResponse(201, savedMember, "Member registered successfully"));
-
-//   } catch (error) {
-//     // If any error occurs, abort the transaction
-//     await session.abortTransaction();
-//     session.endSession();
-//     throw error;
-//   }
-// });
 
 // Get all members with their associated membership and plan
 export const getAllMembers = asyncHandler(async (req, res) => {
@@ -391,7 +341,7 @@ export const extendMembership = asyncHandler(async (req, res) => {
   }
 
   if (newPlanId) {
-    // Opt for a different plan
+    // Handle a new plan being selected
     const newPlan = await Plan.findById(newPlanId);
     if (!newPlan) {
       throw new apiError(404, "New plan not found");
@@ -404,48 +354,139 @@ export const extendMembership = asyncHandler(async (req, res) => {
     const startDate = new Date();
     const endDate = calculateEndDate(startDate, newPlan.duration);
 
+    // Create a new membership
     const newMembership = new Membership({
       plan: newPlan._id,
       startDate,
       endDate,
       status: "active",
       member: member._id,
+      extensions: [{
+        previousEndDate: startDate,
+        newEndDate: endDate,
+        extendedBy: adminId,
+        duration: newPlan.duration,
+      }],
     });
 
     await newMembership.save();
 
+    // Update member's membership reference
     member.membership = newMembership._id;
     await member.save();
 
-    // Generate a new invoice for the new plan
-    const invoice = await generateInvoice(member);
+    const latestExtension = newMembership.extensions[0];
+
+    // Generate an invoice for the new membership plan
+    const invoice = await generateInvoice(member, latestExtension._id);
 
     res.status(200).json(new apiResponse(200, { newMembership, invoice }, "Membership updated to a new plan successfully"));
   } else {
-    // Extend the current membership
-    const previousEndDate = currentMembership.endDate;
+    // Extend current membership
+    const previousEndDate = new Date(currentMembership.endDate);
     const newEndDate = calculateEndDate(previousEndDate, duration);
 
-    currentMembership.endDate = newEndDate;
-    currentMembership.status = "active";
-    currentMembership.extensions.push({
+    // Check if the new end date is actually updated
+    if (newEndDate <= previousEndDate) {
+      throw new apiError(400, "Invalid extension. New end date must be after the previous end date.");
+    }
+
+    // Create a new extension
+    const newExtension = {
       previousEndDate,
       newEndDate,
       extendedBy: adminId,
       duration,
       extendedAt: new Date(),
-    });
+    };
 
+    // Push the new extension and save the membership
+    currentMembership.extensions.push(newExtension);
+    currentMembership.endDate = newEndDate; // Update the endDate for the membership itself
     await currentMembership.save();
 
-    const updatedMembership = await Membership.findById(currentMembership._id).populate('plan');
+    // Get the latest extension that was added
+    const latestExtension = currentMembership.extensions[currentMembership.extensions.length - 1];
 
-    // Generate a new invoice for the membership extension
-    const invoice = await generateInvoice(member);
+    // Generate an invoice for the membership extension
+    const invoice = await generateInvoice(member, latestExtension._id);
 
-    res.status(200).json(new apiResponse(200, { updatedMembership, invoice }, "Membership extended successfully"));
+    res.status(200).json(new apiResponse(200, { updatedMembership: currentMembership, invoice }, "Membership extended successfully"));
   }
 });
+
+// export const extendMembership = asyncHandler(async (req, res) => {
+//   const { memberId, duration, newPlanId } = req.body;
+//   const adminId = req.user._id;
+
+//   const member = await Member.findById(memberId).populate('membership');
+
+//   if (!member) {
+//     throw new apiError(404, "Member not found");
+//   }
+
+//   const currentMembership = await Membership.findById(member.membership._id);
+
+//   if (!currentMembership) {
+//     throw new apiError(404, "Membership not found");
+//   }
+
+//   if (newPlanId) {
+//     // Opt for a different plan
+//     const newPlan = await Plan.findById(newPlanId);
+//     if (!newPlan) {
+//       throw new apiError(404, "New plan not found");
+//     }
+
+//     // Deactivate current membership
+//     currentMembership.status = "inactive";
+//     await currentMembership.save();
+
+//     const startDate = new Date();
+//     const endDate = calculateEndDate(startDate, newPlan.duration);
+
+//     const newMembership = new Membership({
+//       plan: newPlan._id,
+//       startDate,
+//       endDate,
+//       status: "active",
+//       member: member._id,
+//     });
+
+//     await newMembership.save();
+
+//     member.membership = newMembership._id;
+//     await member.save();
+
+//     // Generate a new invoice for the new plan
+//     const invoice = await generateInvoice(member);
+
+//     res.status(200).json(new apiResponse(200, { newMembership, invoice }, "Membership updated to a new plan successfully"));
+//   } else {
+//     // Extend the current membership
+//     const previousEndDate = currentMembership.endDate;
+//     const newEndDate = calculateEndDate(previousEndDate, duration);
+
+//     currentMembership.endDate = newEndDate;
+//     currentMembership.status = "active";
+//     currentMembership.extensions.push({
+//       previousEndDate,
+//       newEndDate,
+//       extendedBy: adminId,
+//       duration,
+//       extendedAt: new Date(),
+//     });
+
+//     await currentMembership.save();
+
+//     const updatedMembership = await Membership.findById(currentMembership._id).populate('plan');
+
+//     // Generate a new invoice for the membership extension
+//     const invoice = await generateInvoice(member);
+
+//     res.status(200).json(new apiResponse(200, { updatedMembership, invoice }, "Membership extended successfully"));
+//   }
+// });
 
 // Find all members with active memberships
 export const getActiveMembers = asyncHandler(async (req, res) => {
