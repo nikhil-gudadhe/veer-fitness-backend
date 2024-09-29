@@ -37,21 +37,6 @@ const calculateEndDate = (startDate, duration) => {
   return endDate;
 };
 
-
-// const calculateEndDate = (startDate, duration) => {
-//   if (isNaN(duration) || duration <= 0 || duration > 12) {
-//     throw new Error("Invalid duration. Must be a number between 1 and 12 representing months.");
-//   }
-//   const endDate = new Date(startDate);
-//   if (isNaN(endDate.getTime())) {
-//     throw new Error("Invalid start date.");
-//   }
-
-//   endDate.setMonth(endDate.getMonth() + duration);
-
-//   return endDate;
-// };
-
 // Register new member
 export const registerMember = asyncHandler(async (req, res) => {
   const { firstName, lastName, gender, age, address, mobile, email, planId } = req.body;
@@ -125,14 +110,24 @@ export const registerMember = asyncHandler(async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
+    // Populate the membership and plan details for the response
+    const populatedMember = await Member.findById(newMember._id)
+      .populate({
+        path: 'membership',
+        populate: {
+          path: 'plan',
+          model: 'Plan'
+        }
+      });
+
     // Get the latest extension ID
     const latestExtensionId = newMembership.extensions[0]._id; 
 
     // Generate the first invoice linked with this extension and membership
     const invoice = await generateInvoice(newMember, latestExtensionId);
 
-    // Return member and invoice in the response
-    res.status(201).json(new apiResponse(201, { newMember, invoice }, "Member registered successfully"));
+    // Return the populated member and invoice in the response
+    res.status(201).json(new apiResponse(201, populatedMember, "Member registered successfully"));
 
   } catch (error) {
     // Abort transaction only if it hasn't been committed
@@ -144,7 +139,99 @@ export const registerMember = asyncHandler(async (req, res) => {
   }
 });
 
+// export const registerMember = asyncHandler(async (req, res) => {
+//   const { firstName, lastName, gender, age, address, mobile, email, planId } = req.body;
+//   const adminId = req.user._id;
+
+//   // Validate required fields
+//   if ([firstName, lastName, gender, age, mobile, email, planId].some(field => field === undefined || field === null || field === '')) {
+//     throw new apiError(400, "All fields are required");
+//   }
+
+//   const existingMember = await Member.findOne({
+//     $or: [{ mobile }, { email }]
+//   });
+
+//   if (existingMember) {
+//     throw new apiError(409, "Member with this email or mobile already exists");
+//   }
+
+//   const plan = await Plan.findById(planId);
+//   if (!plan) {
+//     throw new apiError(404, "Plan not found");
+//   }
+
+//   // Start Mongoose session for transaction
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+
+//   try {
+//     // Create new member
+//     const newMember = new Member({
+//       firstName,
+//       lastName,
+//       gender,
+//       age,
+//       address,
+//       mobile,
+//       email,
+//       joiningDate: new Date(),
+//     });
+
+//     // Save new member within the session
+//     await newMember.save({ session });
+
+//     // Calculate membership dates
+//     const startDate = new Date();
+//     const endDate = calculateEndDate(startDate, plan.duration);
+
+//     // Create new membership with an initial extension
+//     const newMembership = new Membership({
+//       plan: plan._id,
+//       startDate,
+//       endDate,
+//       status: "active",
+//       member: newMember._id,
+//       extensions: [{
+//         previousEndDate: startDate,  // Since it's a new member, use startDate as previousEndDate
+//         newEndDate: endDate,
+//         extendedBy: adminId,
+//         duration: plan.duration
+//       }]
+//     });
+
+//     // Save new membership within the session
+//     await newMembership.save({ session });
+
+//     // Link membership to the member
+//     newMember.membership = newMembership._id;
+//     await newMember.save({ session });
+
+//     // Commit the transaction
+//     await session.commitTransaction();
+//     session.endSession();
+
+//     // Get the latest extension ID
+//     const latestExtensionId = newMembership.extensions[0]._id; 
+
+//     // Generate the first invoice linked with this extension and membership
+//     const invoice = await generateInvoice(newMember, latestExtensionId);
+
+//     // Return member and invoice in the response
+//     res.status(201).json(new apiResponse(201, { newMember, invoice }, "Member registered successfully"));
+
+//   } catch (error) {
+//     // Abort transaction only if it hasn't been committed
+//     if (session.inTransaction()) {
+//       await session.abortTransaction();
+//     }
+//     session.endSession();
+//     throw error;
+//   }
+// });
+
 // Get all members with their associated membership and plan
+
 export const getAllMembers = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
@@ -489,6 +576,7 @@ export const extendMembership = asyncHandler(async (req, res) => {
 // });
 
 // Find all members with active memberships
+
 export const getActiveMembers = asyncHandler(async (req, res) => {
   const activeMemberships = await Membership.find({ status: "active" }).populate('member');
 

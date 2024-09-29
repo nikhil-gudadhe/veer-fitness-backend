@@ -22,6 +22,7 @@ import memberRouter from './routes/member.router.js'
 import planRouter from './routes/plan.router.js'
 import enquiryRouter from './routes/enquiry.router.js'
 import invoiceRouter from './routes/invoice.router.js'
+import membershipRouter from './routes/membership.router.js'
 // import cronjob from utility
 
 //routes declaration
@@ -30,7 +31,7 @@ app.use("/api/v1/members", memberRouter)
 app.use("/api/v1/plans", planRouter)
 app.use('/api/v1/enquiries', enquiryRouter); 
 app.use('/api/v1/invoices', invoiceRouter); 
-
+app.use('/api/v1/memberships', membershipRouter);
 
 app.get("/", function(req, res) {
     res.send({message: "Backend is running fine"});
