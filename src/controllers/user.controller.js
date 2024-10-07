@@ -100,6 +100,19 @@ const loginUser = asyncHandler( async(req, res) => {
     .json(new apiResponse(200, {accessToken, refreshToken}, "User logged in successfully"))
 })
 
+const updateUser = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
+
+    if (!updatedUser) {
+        throw new apiError(404, "User not found");
+    }
+
+    return res.status(200).json(new apiResponse(200, updatedUser, "User updated successfully"));
+});
+
 
 const logoutUser = asyncHandler(async(req, res) => {
 
@@ -147,11 +160,42 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 
 })
 
+const getAllUsers = asyncHandler(async (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+  
+    const skip = (page - 1) * limit;
+  
+    // Count total number of users in the collection
+    const totalUsers = await User.countDocuments();
+  
+    // Fetch the users with pagination, sorting, and optional population if needed
+    const users = await User.find()
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 }); // Sort users by the created date, newest first
+  
+    res.status(200).json(
+      new apiResponse(
+        200,
+        {
+          users,
+          totalUsers,
+          totalPages: Math.ceil(totalUsers / limit),
+          currentPage: page,
+        },
+        'All users fetched successfully'
+      )
+    );
+})
+  
 
 export { 
     registerUser,
     loginUser,
+    updateUser,
     logoutUser,
+    getAllUsers,
     changeCurrentPassword,
-    getCurrentUser 
+    getCurrentUser,
 }
