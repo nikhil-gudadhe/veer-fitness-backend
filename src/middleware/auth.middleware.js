@@ -3,29 +3,65 @@ import { apiError } from "../utils/apiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import jwt from "jsonwebtoken"
 
-export const verifyJWT = asyncHandler( async(req, _, next) => {
+// export const verifyJWT = asyncHandler( async(req, _, next) => {
     
+//     try {
+//         const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "")
+    
+//         if(!token) {
+//             throw new apiError(401, "Unauthorized request")
+//         }
+    
+//         const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET)
+    
+//         const user = await User.findById(decodedToken?._id).select("-password -refreshToken")
+    
+//         if(!user) {
+//             throw new apiError(401, "Invalid access token")
+//         }
+    
+//         req.user = user
+//         next()
+//     } catch (error) {
+//         throw new apiError(401, error?.message || "Invalid access token")
+//     }
+// })
+
+export const verifyJWT = asyncHandler(async (req, _, next) => {
     try {
-        const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "")
-    
-        if(!token) {
-            throw new apiError(401, "Unauthorized request")
+        // Log the cookies and Authorization header to ensure the token is being received correctly
+        console.log("Cookies received:", req.cookies); 
+        console.log("Authorization header:", req.header("Authorization"));
+
+        // Extract token from either cookies or Authorization header
+        const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "");
+        console.log("Extracted token:", token);  // Log the token to check its presence
+
+        if (!token) {
+            throw new apiError(401, "Unauthorized request - No token provided");
         }
-    
-        const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET)
-    
-        const user = await User.findById(decodedToken?._id).select("-password -refreshToken")
-    
-        if(!user) {
-            throw new apiError(401, "Invalid access token")
+
+        // Verify the token
+        const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        console.log("Decoded token:", decodedToken);  // Log the decoded token
+
+        // Find the user associated with the token
+        const user = await User.findById(decodedToken?._id).select("-password -refreshToken");
+        console.log("Found user:", user);  // Log the user object
+
+        if (!user) {
+            throw new apiError(401, "Invalid access token - User not found");
         }
-    
-        req.user = user
-        next()
+
+        // Attach user to the request object
+        req.user = user;
+        next();
     } catch (error) {
-        throw new apiError(401, error?.message || "Invalid access token")
+        console.error("Error in verifyJWT middleware:", error.message);  // Log the error for debugging
+        throw new apiError(401, error?.message || "Invalid access token");
     }
-})
+});
+
 
 export const verifyRole = (roles) => {
     return (req, res, next) => {

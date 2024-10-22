@@ -30,7 +30,7 @@ const generateAccessAndRefreshTokens = async (userId) => {
 }
 
 const generateNewAccessToken = asyncHandler(async (req, res) => {
-    const { refreshToken } = req.cookies; // Assuming you're storing refreshToken in cookies
+    const { refreshToken } = req.cookies;
 
     if (!refreshToken) {
         console.error("Refresh token is missing");
@@ -39,13 +39,9 @@ const generateNewAccessToken = asyncHandler(async (req, res) => {
 
     try {
         console.log("Verifying refresh token...");
-
-        // Verify the refresh token synchronously
         const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-
         console.log("Refresh token verified, user ID:", decoded._id);
 
-        // Find the user by the decoded ID from the token
         const user = await User.findById(decoded._id);
 
         if (!user) {
@@ -53,45 +49,112 @@ const generateNewAccessToken = asyncHandler(async (req, res) => {
             throw new apiError(403, "User not found");
         }
 
-        if (user.refreshToken !== refreshToken) {
+        const isRefreshTokenValid = bcrypt.compareSync(refreshToken, user.refreshToken);
+        if (!isRefreshTokenValid) {
             console.error("Refresh token mismatch");
             throw new apiError(403, "Invalid refresh token");
         }
 
-        // Generate a new access token and optionally a new refresh token
-        const newAccessToken = user.generateAccessToken();
-        const newRefreshToken = user.generateRefreshToken();
+        // Generate new access and refresh tokens
+        const newAccessToken = jwt.sign(
+            { _id: user._id, email: user.email },
+            process.env.ACCESS_TOKEN_SECRET,
+            { expiresIn: process.env.ACCESS_TOKEN_EXPIRY }  // Use env variable for expiry
+        );
 
-        console.log("Generated new tokens");
+        const newRefreshToken = jwt.sign(
+            { _id: user._id },
+            process.env.REFRESH_TOKEN_SECRET,
+            { expiresIn: process.env.REFRESH_TOKEN_EXPIRY }  // Use env variable for expiry
+        );
 
         // Update the user's refresh token in the database
-        user.refreshToken = newRefreshToken;
+        user.refreshToken = bcrypt.hashSync(newRefreshToken, 10);
         await user.save({ validateBeforeSave: false });
 
-        const options = {
+        const cookieOptions = {
             httpOnly: true,
             secure: true,
             sameSite: 'Lax',
         };
 
-        // Return the new tokens in cookies and the response body
         return res.status(200)
-            .cookie("accessToken", newAccessToken, options)
-            .cookie("refreshToken", newRefreshToken, options)
-            .json(new apiResponse(200, { accessToken: newAccessToken, refreshToken: newRefreshToken }, "Token refreshed successfully"));
+            .cookie("accessToken", newAccessToken, { ...cookieOptions, maxAge: eval(process.env.ACCESS_TOKEN_EXPIRY) })  // Use env variable for maxAge
+            .cookie("refreshToken", newRefreshToken, { ...cookieOptions, maxAge: eval(process.env.REFRESH_TOKEN_EXPIRY) })  // Use env variable for maxAge
+            .json(new apiResponse(200, { accessToken: newAccessToken }, "Token refreshed successfully"));
 
     } catch (error) {
         console.error("Error refreshing token:", error.message || error);
         if (error instanceof jwt.JsonWebTokenError) {
-            // Handle JWT verification errors specifically
             throw new apiError(403, "Invalid or expired refresh token");
         }
-        // Handle any other errors
         throw new apiError(500, "An error occurred while refreshing the token");
     }
 });
 
 
+// const generateNewAccessToken = asyncHandler(async (req, res) => {
+//     const { refreshToken } = req.cookies; // Assuming you're storing refreshToken in cookies
+
+//     if (!refreshToken) {
+//         console.error("Refresh token is missing");
+//         throw new apiError(401, "Refresh token is missing");
+//     }
+
+//     try {
+//         console.log("Verifying refresh token...");
+
+//         // Verify the refresh token synchronously
+//         const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+//         console.log("Refresh token verified, user ID:", decoded._id);
+
+//         // Find the user by the decoded ID from the token
+//         const user = await User.findById(decoded._id);
+
+//         if (!user) {
+//             console.error("User not found");
+//             throw new apiError(403, "User not found");
+//         }
+
+//         if (user.refreshToken !== refreshToken) {
+//             console.error("Refresh token mismatch");
+//             throw new apiError(403, "Invalid refresh token");
+//         }
+
+//         // Generate a new access token and optionally a new refresh token
+//         const newAccessToken = user.generateAccessToken();
+//         const newRefreshToken = user.generateRefreshToken();
+
+//         console.log("Generated new tokens");
+
+//         // Update the user's refresh token in the database
+//         user.refreshToken = newRefreshToken;
+//         await user.save({ validateBeforeSave: false });
+
+//         const options = {
+//             httpOnly: true,
+//             secure: true,
+//         };
+
+//         //            sameSite: 'Lax',
+
+//         // Return the new tokens in cookies and the response body
+//         return res.status(200)
+//             .cookie("accessToken", newAccessToken, options)
+//             .cookie("refreshToken", newRefreshToken, options)
+//             .json(new apiResponse(200, { accessToken: newAccessToken, refreshToken: newRefreshToken }, "Token refreshed successfully"));
+
+//     } catch (error) {
+//         console.error("Error refreshing token:", error.message || error);
+//         if (error instanceof jwt.JsonWebTokenError) {
+//             // Handle JWT verification errors specifically
+//             throw new apiError(403, "Invalid or expired refresh token");
+//         }
+//         // Handle any other errors
+//         throw new apiError(500, "An error occurred while refreshing the token");
+//     }
+// });
 
 const  registerUser = asyncHandler( async(req, res) => {
 
@@ -133,45 +196,6 @@ const  registerUser = asyncHandler( async(req, res) => {
 
 })
 
-// const loginUser = asyncHandler( async(req, res) => {
-
-//     const { username, email, password } = req.body
-
-//     if( !username && !email ) {
-//         throw new apiError(400, "Username or email is required")
-//     }
-
-//     const user = await User.findOne({
-//         $or: [{ username }, { email }]
-//     })
-
-    
-//     if(!user) {
-//         throw new apiError(404, "User does not exists")
-//     }
-
-//     const isPasswordValid = await user.isPasswordCorrect(password)
-
-//     if(!isPasswordValid) {
-//         throw new apiError(401, "Invalid user credentials")
-//     }
-
-//     const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id)
-    
-//     const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
-
-//     const options = {
-//         httpOnly: true,
-//         secure: true,
-//         sameSite: 'Lax'
-//     }
-
-//     return res.status(200)
-//     .cookie("accessToken", accessToken, options)
-//     .cookie("refreshToken", refreshToken, options)
-//     .json(new apiResponse(200, {accessToken, refreshToken}, "User logged in successfully"))
-// })
-
 const loginUser = asyncHandler(async (req, res) => {
     const { username, email, password } = req.body;
 
@@ -204,9 +228,9 @@ const loginUser = asyncHandler(async (req, res) => {
     const options = {
         httpOnly: true,
         secure: true,
-        sameSite: 'Lax',
     };
-
+    
+    //        sameSite: 'Lax',
     return res.status(200)
         .cookie("accessToken", accessToken, options)
         .cookie("refreshToken", refreshToken, options)
