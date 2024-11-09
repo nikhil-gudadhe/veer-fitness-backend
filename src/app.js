@@ -23,7 +23,6 @@ import planRouter from './routes/plan.router.js'
 import enquiryRouter from './routes/enquiry.router.js'
 import invoiceRouter from './routes/invoice.router.js'
 import membershipRouter from './routes/membership.router.js'
-// import cronjob from utility
 
 //routes declaration
 app.use("/api/v1/users", userRouter)

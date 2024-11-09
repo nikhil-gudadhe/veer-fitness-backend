@@ -29,133 +29,6 @@ const generateAccessAndRefreshTokens = async (userId) => {
     }
 }
 
-const generateNewAccessToken = asyncHandler(async (req, res) => {
-    const { refreshToken } = req.cookies;
-
-    if (!refreshToken) {
-        console.error("Refresh token is missing");
-        throw new apiError(401, "Refresh token is missing");
-    }
-
-    try {
-        console.log("Verifying refresh token...");
-        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-        console.log("Refresh token verified, user ID:", decoded._id);
-
-        const user = await User.findById(decoded._id);
-
-        if (!user) {
-            console.error("User not found");
-            throw new apiError(403, "User not found");
-        }
-
-        const isRefreshTokenValid = bcrypt.compareSync(refreshToken, user.refreshToken);
-        if (!isRefreshTokenValid) {
-            console.error("Refresh token mismatch");
-            throw new apiError(403, "Invalid refresh token");
-        }
-
-        // Generate new access and refresh tokens
-        const newAccessToken = jwt.sign(
-            { _id: user._id, email: user.email },
-            process.env.ACCESS_TOKEN_SECRET,
-            { expiresIn: process.env.ACCESS_TOKEN_EXPIRY }  // Use env variable for expiry
-        );
-
-        const newRefreshToken = jwt.sign(
-            { _id: user._id },
-            process.env.REFRESH_TOKEN_SECRET,
-            { expiresIn: process.env.REFRESH_TOKEN_EXPIRY }  // Use env variable for expiry
-        );
-
-        // Update the user's refresh token in the database
-        user.refreshToken = bcrypt.hashSync(newRefreshToken, 10);
-        await user.save({ validateBeforeSave: false });
-
-        const cookieOptions = {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'Lax',
-        };
-
-        return res.status(200)
-            .cookie("accessToken", newAccessToken, { ...cookieOptions, maxAge: eval(process.env.ACCESS_TOKEN_EXPIRY) })  // Use env variable for maxAge
-            .cookie("refreshToken", newRefreshToken, { ...cookieOptions, maxAge: eval(process.env.REFRESH_TOKEN_EXPIRY) })  // Use env variable for maxAge
-            .json(new apiResponse(200, { accessToken: newAccessToken }, "Token refreshed successfully"));
-
-    } catch (error) {
-        console.error("Error refreshing token:", error.message || error);
-        if (error instanceof jwt.JsonWebTokenError) {
-            throw new apiError(403, "Invalid or expired refresh token");
-        }
-        throw new apiError(500, "An error occurred while refreshing the token");
-    }
-});
-
-
-// const generateNewAccessToken = asyncHandler(async (req, res) => {
-//     const { refreshToken } = req.cookies; // Assuming you're storing refreshToken in cookies
-
-//     if (!refreshToken) {
-//         console.error("Refresh token is missing");
-//         throw new apiError(401, "Refresh token is missing");
-//     }
-
-//     try {
-//         console.log("Verifying refresh token...");
-
-//         // Verify the refresh token synchronously
-//         const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-
-//         console.log("Refresh token verified, user ID:", decoded._id);
-
-//         // Find the user by the decoded ID from the token
-//         const user = await User.findById(decoded._id);
-
-//         if (!user) {
-//             console.error("User not found");
-//             throw new apiError(403, "User not found");
-//         }
-
-//         if (user.refreshToken !== refreshToken) {
-//             console.error("Refresh token mismatch");
-//             throw new apiError(403, "Invalid refresh token");
-//         }
-
-//         // Generate a new access token and optionally a new refresh token
-//         const newAccessToken = user.generateAccessToken();
-//         const newRefreshToken = user.generateRefreshToken();
-
-//         console.log("Generated new tokens");
-
-//         // Update the user's refresh token in the database
-//         user.refreshToken = newRefreshToken;
-//         await user.save({ validateBeforeSave: false });
-
-//         const options = {
-//             httpOnly: true,
-//             secure: true,
-//         };
-
-//         //            sameSite: 'Lax',
-
-//         // Return the new tokens in cookies and the response body
-//         return res.status(200)
-//             .cookie("accessToken", newAccessToken, options)
-//             .cookie("refreshToken", newRefreshToken, options)
-//             .json(new apiResponse(200, { accessToken: newAccessToken, refreshToken: newRefreshToken }, "Token refreshed successfully"));
-
-//     } catch (error) {
-//         console.error("Error refreshing token:", error.message || error);
-//         if (error instanceof jwt.JsonWebTokenError) {
-//             // Handle JWT verification errors specifically
-//             throw new apiError(403, "Invalid or expired refresh token");
-//         }
-//         // Handle any other errors
-//         throw new apiError(500, "An error occurred while refreshing the token");
-//     }
-// });
-
 const  registerUser = asyncHandler( async(req, res) => {
 
     const {username, email, password } = req.body 
@@ -230,13 +103,12 @@ const loginUser = asyncHandler(async (req, res) => {
         secure: true,
     };
     
-    //        sameSite: 'Lax',
+    //sameSite: 'Lax',
     return res.status(200)
         .cookie("accessToken", accessToken, options)
         .cookie("refreshToken", refreshToken, options)
         .json(new apiResponse(200, { accessToken, refreshToken }, "User logged in successfully"));
 });
-
 
 const updateUser = asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -250,7 +122,6 @@ const updateUser = asyncHandler(async (req, res) => {
 
     return res.status(200).json(new apiResponse(200, updatedUser, "User updated successfully"));
 });
-
 
 const logoutUser = asyncHandler(async(req, res) => {
 
@@ -327,15 +198,56 @@ const getAllUsers = asyncHandler(async (req, res) => {
       )
     );
 })
-  
 
+const searchUsers = asyncHandler(async (req, res) => {
+    const { searchTerm = '', page = 1, limit = 10 } = req.query;
+    const searchQuery = String(searchTerm);
+    const skip = (page - 1) * limit;
+  
+    // Search users based on username, email, firstName, or lastName
+    const users = await User.find({
+      $or: [
+        { username: { $regex: searchQuery, $options: 'i' } },
+        { email: { $regex: searchQuery, $options: 'i' } },
+        { firstName: { $regex: searchQuery, $options: 'i' } },
+        { lastName: { $regex: searchQuery, $options: 'i' } },
+      ],
+    })
+      .select('-password -refreshToken') // Exclude sensitive fields
+      .skip(skip)
+      .limit(Number(limit));
+  
+    // Count the total number of users matching the search criteria
+    const totalUsers = await User.countDocuments({
+      $or: [
+        { username: { $regex: searchQuery, $options: 'i' } },
+        { email: { $regex: searchQuery, $options: 'i' } },
+        { firstName: { $regex: searchQuery, $options: 'i' } },
+        { lastName: { $regex: searchQuery, $options: 'i' } },
+      ],
+    });
+  
+    res.status(200).json(
+      new apiResponse(
+        200,
+        {
+          users,
+          totalUsers,
+          totalPages: Math.ceil(totalUsers / limit),
+          currentPage: Number(page),
+        },
+        'Users fetched successfully'
+      )
+    );
+})
+  
 export { 
     registerUser,
-    generateNewAccessToken,
     loginUser,
     updateUser,
     logoutUser,
     getAllUsers,
+    searchUsers,
     changeCurrentPassword,
     getCurrentUser,
 }
