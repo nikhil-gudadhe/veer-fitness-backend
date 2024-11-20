@@ -9,7 +9,7 @@ router.route("/login").post(loginUser)
 
 //secured routes
 router.route("/logout").post(verifyJWT,logoutUser)
-router.route("/edit/:userId").patch(verifyJWT,updateUser)
+router.route("/edit/:id").patch(verifyJWT,updateUser)
 router.route("/change-password").post(verifyJWT, changeCurrentPassword)
 router.route("/user-account").get(verifyJWT, getCurrentUser)
 router.route("/all-users").get(verifyJWT, verifyRole(['admin']), getAllUsers)

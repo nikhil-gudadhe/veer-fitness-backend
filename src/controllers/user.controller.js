@@ -111,16 +111,25 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 const updateUser = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const updates = req.body;
+  const { id } = req.params;
 
-    const updatedUser = await User.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
+  // Restrict fields that can be updated
+  const allowedUpdates = ['username', 'email', 'role', 'password'];
+  const updates = Object.keys(req.body).reduce((acc, key) => {
+      if (allowedUpdates.includes(key)) acc[key] = req.body[key];
+      return acc;
+  }, {});
 
-    if (!updatedUser) {
-        throw new apiError(404, "User not found");
-    }
+  if (updates.password) {
+      updates.password = await bcrypt.hash(updates.password, 10);
+  }
+  const updatedUser = await User.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
 
-    return res.status(200).json(new apiResponse(200, updatedUser, "User updated successfully"));
+  if (!updatedUser) {
+      throw new apiError(404, "User not found");
+  }
+
+  return res.status(200).json(new apiResponse(200, updatedUser, "User updated successfully"));
 });
 
 const logoutUser = asyncHandler(async(req, res) => {
@@ -181,6 +190,7 @@ const getAllUsers = asyncHandler(async (req, res) => {
   
     // Fetch the users with pagination, sorting, and optional population if needed
     const users = await User.find()
+      .select('-password -refreshToken')
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 }); // Sort users by the created date, newest first
