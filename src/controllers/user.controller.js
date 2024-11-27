@@ -113,23 +113,31 @@ const loginUser = asyncHandler(async (req, res) => {
 const updateUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  // Restrict fields that can be updated
-  const allowedUpdates = ['username', 'email', 'role', 'password'];
-  const updates = Object.keys(req.body).reduce((acc, key) => {
-      if (allowedUpdates.includes(key)) acc[key] = req.body[key];
-      return acc;
-  }, {});
-
-  if (updates.password) {
-      updates.password = await bcrypt.hash(updates.password, 10);
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new apiError(400, "Invalid user ID");
   }
+
+  const allowedUpdates = ['username', 'email', 'role', 'password'];
+  const updates = Object.fromEntries(
+      Object.entries(req.body).filter(([key]) => allowedUpdates.includes(key))
+  );
+
+  if (updates.password && updates.password.trim()) {
+      updates.password = await bcrypt.hash(updates.password, 10);
+  } else {
+      delete updates.password;
+  }
+
   const updatedUser = await User.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
 
   if (!updatedUser) {
       throw new apiError(404, "User not found");
   }
 
-  return res.status(200).json(new apiResponse(200, updatedUser, "User updated successfully"));
+  // Exclude sensitive fields from the response
+  const { password, ...safeUser } = updatedUser.toObject();
+
+  return res.status(200).json(new apiResponse(200, safeUser, "User updated successfully"));
 });
 
 const logoutUser = asyncHandler(async(req, res) => {
