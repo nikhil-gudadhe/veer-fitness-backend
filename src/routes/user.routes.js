@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { registerUser, loginUser, logoutUser,  updateUser, changeCurrentPassword, getCurrentUser, getAllUsers, searchUsers } from "../controllers/user.controller.js"
+import { registerUser, loginUser, logoutUser,  updateUser, changeCurrentPassword, getCurrentUser, getAllUsers, searchUsers, deleteUser } from "../controllers/user.controller.js"
 import { verifyJWT, verifyRole } from "../middleware/auth.middleware.js"
 
 const router = Router()
@@ -14,12 +14,6 @@ router.route("/change-password").post(verifyJWT, changeCurrentPassword)
 router.route("/user-account").get(verifyJWT, getCurrentUser)
 router.route("/all-users").get(verifyJWT, verifyRole(['admin']), getAllUsers)
 router.route("/search").get(verifyJWT, verifyRole(["admin", "trainer"]), searchUsers);
-
-
-// admin routes
-//router.route("/admin/users").get(verifyJWT, verifyRole(['admin']), getAllUsers);
-
-// trainer routes
-//router.route("/trainer/classes").get(verifyJWT, verifyRole(['trainer']), getTrainerClasses);
+router.route("/delete/:id").delete(verifyJWT, verifyRole(['admin']), deleteUser)
 
 export default router

@@ -258,6 +258,24 @@ const searchUsers = asyncHandler(async (req, res) => {
       )
     );
 })
+
+const deleteUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  // Validate the user ID
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new apiError(400, "Invalid user ID");
+  }
+
+  const deletedUser = await User.findByIdAndDelete(id);
+
+  if (!deletedUser) {
+      throw new apiError(404, "User not found");
+  }
+
+  return res.status(200).json(new apiResponse(200, deletedUser, "User deleted successfully"));
+});
+
   
 export { 
     registerUser,
@@ -268,4 +286,5 @@ export {
     searchUsers,
     changeCurrentPassword,
     getCurrentUser,
+    deleteUser
 }
